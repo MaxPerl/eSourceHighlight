@@ -18,6 +18,7 @@ use File::ShareDir 'dist_dir';
 
 use File::HomeDir;
 use File::Basename;
+use Cwd qw(abs_path);
 
 use eSourceHighlight::Tab;
 use eSourceHighlight::Entry;
@@ -106,13 +107,24 @@ sub init_ui {
 	
 	my $search = eSourceHighlight::Search->new($self,$searchbar);
 	
-	my $tab = eSourceHighlight::Tab->new(filename => "", id => 0);
-	$self->current_tab($tab);
-	$self->push_tab($tab);
-	
 	$self->add_menu($win,$box);
 	
 	$self->add_statusbar($box);
+	
+	if (@ARGV) {
+	
+		my $i = 0;
+		foreach my $fname (@ARGV) {
+			my $filename = abs_path($fname);
+			print "open $filename \n";
+			$self->open_file($filename);
+		}
+	}
+	else {
+		my $tab = eSourceHighlight::Tab->new(filename => "", id => 0);
+		$self->current_tab($tab);
+		$self->push_tab($tab);
+	}
 	
 	$win->resize(900,600);
 	$win->show();
@@ -383,16 +395,8 @@ sub _fs_save_done {
 	
 	$self->save();
 }
-
-sub _fs_open_done {
-	my ($self, $obj, $ev_info) = @_;
-	
-	my $fs_win = $obj->top_widget_get;
-	$fs_win->del();
-	
-	return unless($ev_info);
-	
-	my $selected = Efl::ev_info2s($ev_info);
+sub open_file {
+	my ($self, $selected) = @_;
 	
 	if (-e $selected && -f $selected && -r $selected) {
 		
@@ -415,8 +419,10 @@ sub _fs_open_done {
 			$tab->filename($selected);
 		}
 		else {
-		 	$tab->content($en->entry_get);
-		 	$tab->cursor_pos($en->cursor_pos_get());
+		 	if ($tab) {
+		 		$tab->content($en->entry_get);
+		 		$tab->cursor_pos($en->cursor_pos_get());
+		 	}
 			
 			my $new_tab = eSourceHighlight::Tab->new(filename => $selected, id => scalar( @{$self->tabs} ) );
 			$self->current_tab($new_tab);
@@ -441,6 +447,18 @@ sub _fs_open_done {
 	else {
 		warn "Could not open file $selected\n";
 	}
+}
+sub _fs_open_done {
+	my ($self, $obj, $ev_info) = @_;
+	
+	my $fs_win = $obj->top_widget_get;
+	$fs_win->del();
+	
+	return unless($ev_info);
+	
+	my $selected = Efl::ev_info2s($ev_info);
+	
+	$self->open_file($selected);
 	
 }
 
