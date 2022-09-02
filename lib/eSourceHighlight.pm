@@ -276,7 +276,15 @@ sub file_cb {
 	$fs_win->resize_object_add($vbox);
 	
 	my $fs = Efl::Elm::Fileselector->add($fs_win);
-	$fs->path_set(File::HomeDir->my_home);
+	
+	my $path; 
+	if ($self->current_tab->filename) { 
+		(undef, $path, undef) = fileparse( $self->current_tab->filename );
+	}
+	else { 
+		$path = File::HomeDir->my_home;
+	}
+	$fs->path_set($path);
 	$fs->expandable_set(0);
 	$fs->expandable_set(0);
 	$fs->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);

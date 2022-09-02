@@ -8,7 +8,8 @@ WriteMakefile(
     NAME              => 'eSourceHighlight',
     VERSION_FROM      => 'lib/eSourceHighlight.pm', # finds $VERSION, requires EU::MM from perl >= 5.5
     PREREQ_PM         => {	'Syntax::SourceHighlight' => 0,
-			    			'Efl' => 0}, # e.g., Module::Name => 1.1
+			    			'Efl' => 0,
+			    			'File::HomeDir' => 0}, # e.g., Module::Name => 1.1
     BUILD_REQUIRES    => {'File::ShareDir::Install' => 0},
     ABSTRACT_FROM     => 'lib/eSourceHighlight.pm', # retrieve abstract from module
 	EXE_FILES		  => ['bin/esource-highlight.pl'],

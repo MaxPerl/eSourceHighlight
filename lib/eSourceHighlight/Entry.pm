@@ -83,6 +83,7 @@ sub init_entry {
 	
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&line_column_get, $self);
+	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	
 	
@@ -165,6 +166,11 @@ sub changed {
 	# Clear search results
 	######################
 	$self->search()->clear_search_results();
+	
+	#######################
+	# get line on del change 
+	########################
+	$self->get_line_on_del($change_info);
 }
 
 
@@ -613,37 +619,14 @@ sub line_column_get {
 	my $label = $self->app->elm_linecolumn_label();
 	return unless(defined($label));
 	
-	my $textblock = $en->textblock_get();
-	my $fnode = $textblock->node_format_first_get();
-	
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
-	$cp1->pos_set($en->cursor_pos_get);
-	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
-	$cp2->pos_set($en->cursor_pos_get);
-	$cp2->line_char_first();
-	
-	$column = $cp1->pos_get() - $cp2->pos_get();
+	$column = $self->column_get();
 	
 	my $e = Efl::ev_info2obj($event, "Efl::Ecore::Event::Key");
 	
 	my $keyname = $e->keyname();
 	if ($keyname =~ m/Up|Down|KP_Next|KP_Prior|Return/) {
-	
-		$cp2->pos_set(0);
-		my $text_before = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_MARKUP);
-		
-		$lines = $text_before =~ s/<br\/>/$&/g; 
-		if ($lines ==0 ) {
-			$lines = 1; 
-		} 
-		else { 
-			$lines = $lines + 1;
-		}
-		
+		$lines = $self->line_get();
 	}
-	#$en->cursor_pos_set($cp);
-	$cp1->free();
-	$cp2->free();
 	
 	if ($lines) {
 		$label->text_set("Line: $lines Column: $column");
@@ -656,6 +639,53 @@ sub line_column_get {
 	}
 
 	
+}
+
+sub line_column_get_mouse {
+	my ($self, $evas, $en, $event) = @_;
+	my $column; my $lines;
+	
+	my $label = $self->app->elm_linecolumn_label();
+	return unless(defined($label));
+	
+	$column = $self->column_get();
+	
+	my $e = Efl::ev_info2obj( $event, "Efl::Evas::Event::MouseDown");
+	
+	my $button = $e->button();
+	if ($button == 1) {
+		$lines = $self->line_get();
+	}
+	
+	if ($lines) {
+		$label->text_set("Line: $lines Column: $column");
+		$self->current_line($lines);
+	}
+	else {
+		my $text = $label->text_get();
+		$text =~ s/(.*)Column:.*$/$1Column: $column/;
+		$label->text_set($text);
+	}
+
+	
+}
+
+sub get_line_on_del {
+	my ($self, $change_info) = @_;
+	
+	unless ($change_info->insert) {
+		my $change = $change_info->change();
+		my $content = $change->{insert}->{content};
+	
+		if ($content eq "<br/>") {
+			my $line = $self->line_get();
+			my $column = $self->column_get();
+			my $label = $self->app->elm_linecolumn_label();
+			return unless(defined($label));
+			$label->text_set("Line: $line Column: $column");
+			$self->current_line($line);
+		}
+	}
 }
 
 ######################
