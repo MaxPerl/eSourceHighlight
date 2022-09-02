@@ -117,7 +117,7 @@ sub init_search {
    	$replace_entry->show();
    	$replace_entry->smart_callback_add("changed",\&search_entry_changed,$self);
    	
-   	$table->show();
+	$table->show();
 	$big_box->pack_end($table);
    	
    	my $box2 = Efl::Elm::Box->add($parent);

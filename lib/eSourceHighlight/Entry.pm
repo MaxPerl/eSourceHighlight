@@ -389,7 +389,7 @@ sub rehighlight_all {
 	
 	my $entry = $self->elm_entry();
 	
-	print "Set rehighlight no in rehighlight_all\n";
+	#print "Set rehighlight no in rehighlight_all\n";
 	$self->rehighlight("no");
 	
 	my $cursor_pos = $entry->cursor_pos_get();
@@ -398,7 +398,7 @@ sub rehighlight_all {
 	my $text = $entry->selection_get();
 	
 	$text = $self->highlight_str($text);      		
-
+	
 	# if $entry->insert(undef|"") is called, then no "change" event is triggered
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
 	# therefore check, whether there is a text

@@ -84,6 +84,12 @@ sub init_ui {
 	my $win = Efl::Elm::Win->util_standard_add("eSourceHighlight", "eSourceHighlight");
 	$win->smart_callback_add("delete,request" => \&on_exit, $self);
 	$self->elm_mainwindow($win);
+	
+	# Create new icon
+	my $ic = Efl::Elm::Icon->add($win);
+	$ic->file_set($self->share_dir . "/icon1.svg", undef );
+	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
+	$win->icon_object_set($ic);
 		
 	my $box = Efl::Elm::Box->add($win);
 	$box->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
@@ -199,7 +205,12 @@ sub add_menu {
 	$self->elm_src_highlight_check($src_highlight_check);
 	
 	my $help_it = $menu->item_add(undef,undef,"Help",undef, undef);
-	$menu->item_add($help_it,"help-about","About",\&about,$self);
+	my $about_it = $menu->item_add($help_it,"help-about","About",\&about,$self);
+	# Create new icon
+	my $ic = Efl::Elm::Icon->add($win);
+	$ic->file_set($self->share_dir . "/icon1.svg", undef );
+	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
+	$about_it->content_set($ic);
 	
 	# Keyboard shortcuts
 	Efl::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
@@ -408,7 +419,8 @@ sub open_file {
 		while (my $line=<$fh>) {
 			$content = $content . $line;
 		}
-		#$content = Efl::Elm::Entry::utf8_to_markup($content);
+		
+		$content = Efl::Elm::Entry::utf8_to_markup($content);
 		
 		# Change the filename variable and/or open a new tab
 		my ($name,$dirs,$suffix) = fileparse($selected); 
@@ -431,7 +443,7 @@ sub open_file {
 		
 		# change content of the entry
 		$content =~ s/\n/<br\/>/g;$content =~ s/\t/<tab\/>/g;
-		$en->entry_insert($content);
+		$en->entry_set($content);
 
 		# Determ the input language 
 		$self->entry->determ_source_lang($selected);
