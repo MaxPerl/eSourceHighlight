@@ -15,6 +15,7 @@ use Efl::Evas;
 
 use Syntax::SourceHighlight;
 use HTML::Entities;
+use Encode;
 
 our @ISA = qw(Exporter);
 
@@ -377,8 +378,12 @@ sub highlight_str {
 	my $sh_lang = $self->app->current_tab->sh_lang(); 
 	if (defined($sh_lang)) {
 		#decode_entities($text);
-		
 		$text = $sh_obj->highlightString($text,$sh_lang);
+	}
+	# If there is no source highlight by the GNU source-highlight lib
+	# we must encode HTML entities (otherwise it is done by source-highlight!!)
+	else {
+		encode_entities($text,"<>&");
 	}
 	
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
@@ -401,6 +406,7 @@ sub rehighlight_all {
 	
 	$entry->select_all();
 	my $text = $entry->selection_get();
+	
 	
 	$text = $self->highlight_str($text);      		
 	

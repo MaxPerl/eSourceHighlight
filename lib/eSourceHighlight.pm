@@ -392,7 +392,7 @@ sub save {
 		# get the content of the buffer, without hidden characters
 		my $content = $en->entry_get();
 		$content = Efl::Elm::Entry::markup_to_utf8($content);
-
+		
 		open my $fh, ">:encoding(utf8)", $filename or die "Could not save file: $filename\n";
 		print $fh "$content";
 		close $fh;
