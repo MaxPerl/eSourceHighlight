@@ -186,6 +186,9 @@ sub add_menu {
 	my $entry = $self->entry();
 	$menu->item_add($edit_it,"edit-undo","Undo",\&eSourceHighlight::Entry::undo,$self->entry);
 	$menu->item_add($edit_it,"edit-redo","Redo",\&eSourceHighlight::Entry::redo,$self->entry);
+	$menu->item_add($edit_it,"edit-cut","Cut",sub {$self->entry->elm_entry->selection_cut()},undef);
+	$menu->item_add($edit_it,"edit-copy","Copy",sub {$self->entry->elm_entry->selection_copy()},undef);
+	$menu->item_add($edit_it,"edit-paste","Paste",sub {$self->entry->elm_entry->selection_paste()},undef);
 	$menu->item_add($edit_it,"edit-find","Find / Replace",\&toggle_find,$self);
 	
 	my $doc_it = $menu->item_add(undef,undef,"Document",undef, undef);
@@ -312,7 +315,6 @@ sub file_cb {
 	my $fs_win = Efl::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
 	$fs_win->focus_highlight_enabled_set(1);
 	$fs_win->autodel_set(1);
-	$fs_win->resize(450,300);
 	
 	my $vbox = Efl::Elm::Box->add($fs_win);
 	$vbox->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
@@ -338,6 +340,7 @@ sub file_cb {
 	
 	$vbox->pack_end($fs);
 	#$fs_win->resize_object_add($fs);
+	$fs_win->resize(600,400);
 	$fs_win->show();
 	
 	return $fs;
