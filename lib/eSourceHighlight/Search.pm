@@ -43,20 +43,14 @@ sub new {
 
 	my $obj = {
 		app => $app,
-		entry => undef,
+		elm_entry => undef,
 		found => [],
-		elm_search => undef,
 		parent => undef,
-		checkbox => undef,
-		wrapped_text => undef,
-		current_search_line => 0,
-		current_search_column => 0,
-		term_found => undef,
-		wrap => undef,
-		replace_entry => undef,
-		replace_button => undef,
-		cache => undef,
-		wrapped => undef,
+		elm_replace_entry => undef,
+		elm_widget => undef,
+		elm_search_button => undef,
+		keysearch => "no",
+		refocus_replace => "no",
 		};
 	bless($obj,$class);
 	$obj->init_search($app,$box);
@@ -99,7 +93,13 @@ sub init_search {
    	$entry->size_hint_weight_set(EVAS_HINT_EXPAND, 0.0);
    	$table->pack($entry, 1, 0, 1, 1);
    	$entry->show();
+   	
    	$entry->smart_callback_add("changed",\&search_entry_changed,$self);
+   	$entry->smart_callback_add("activated",\&search_entry_activated,$self);
+   	$entry->smart_callback_add("aborted",\&search_aborted,$self);
+   	$self->app->entry->elm_entry->smart_callback_add("selection,changed",\&unfocused_cb,$self);
+   	
+   	#$entry->event_callback_add(EVAS_CALLBACK_KEY_UP, \&search_entry_key_down, $self);
    	
    	my $replace_lbl = Efl::Elm::Label->add($table);
    	$replace_lbl->text_set("Replace term");
@@ -116,6 +116,8 @@ sub init_search {
    	$table->pack($replace_entry, 1, 1, 1, 1);
    	$replace_entry->show();
    	$replace_entry->smart_callback_add("changed",\&search_entry_changed,$self);
+   	$replace_entry->smart_callback_add("activated",\&replace_entry_activated,$self);
+   	$replace_entry->smart_callback_add("aborted",\&search_aborted,$self);
    	
 	$table->show();
 	$big_box->pack_end($table);
@@ -128,9 +130,6 @@ sub init_search {
 	$box2->size_hint_weight_set(0.0,0.0);
 	$box2->show();
 	$big_box->pack_end($box2);
-	
-	# TODO Evas_eventCallback
-	# evas_object_event_callback_add(entry, EVAS_CALLBACK_KEY_UP, _edi_search_key_up_cb, editor);
 	
 	my $wrapped_text = Efl::Elm::Label->add($parent);
 	$wrapped_text->text_set("Reached end of file, starting from beginning");
@@ -167,37 +166,33 @@ sub init_search {
    	$cancel_btn->smart_callback_add("clicked", \&cancel_clicked, $app->entry);
    	
    	#$self->wrapped_text($wrapped_text);
-   	$self->entry($entry);
-   	$self->replace_entry($replace_entry);
-   	#$self->replace_btn($replace_btn);
+   	$self->elm_entry($entry);
+   	$self->elm_replace_entry($replace_entry);
+   	$self->elm_search_button($btn);
    	#$self->parent($parent);
-   	$self->widget($big_box);
+   	$self->elm_widget($big_box);
    	#$self->checkbox($checkbox);
    	$app->entry->search($self);
    	
 }
 
+
 sub search_entry_changed {
-	my ($self) = @_;
+	my ($self, $obj,$data) = @_;
 	
 	$self->clear_search_results();
 }
 
-sub replace_entry_changed {
-	my ($self) = @_;
-	
-	$self->clear_search_results();
-}
+
 sub do_search {
 	my ($search, $entry) = @_;
 	
 	my $en = $entry->elm_entry();
-	my $text_markup = $search->entry()->text_get();
+	my $text_markup = $search->elm_entry()->text_get();
 	my $text = Efl::Elm::Entry::markup_to_utf8($text_markup);
 	
 	return unless ($text);
 	$text = Encode::decode("UTF8",$text,Encode::FB_CROAK);
-	
 	
 	# Workaround that length works properly on the Elementary Utf8 Format
 	#Encode::_utf8_on($text);
@@ -264,11 +259,40 @@ sub do_search {
 	
 }
 
-
 sub clear_search_results {
 	my ($self) = @_;
 	
 	$self->found([]);
+}
+
+sub search_aborted {
+	my ($self, $obj, $ev) = @_;
+	$self->app->toggle_find($self->app);
+}
+
+sub search_entry_activated {
+	my ($self, $obj, $ev) = @_;
+	$self->do_search($self->app->entry);
+	$self->keysearch("yes");
+}
+
+sub replace_entry_activated {
+	my ($self, $obj, $ev) = @_;
+	$self->replace_clicked();
+	$self->refocus_replace("yes");
+}
+
+sub unfocused_cb {
+	my ($self, $obj) = @_;
+
+	if ($self->keysearch() eq "yes") {
+		$self->keysearch("no");
+		$self->elm_entry->focus_set(1);
+	}
+	elsif ($self->refocus_replace eq "yes") {
+		$self->refocus_replace("no");
+		$self->elm_replace_entry->focus_set(1);
+	}
 }
 
 sub search_clicked {
@@ -281,18 +305,20 @@ sub search_clicked {
 	}
 }
 
+
+
 sub replace_clicked {
 	my ($self, $obj, $ev) = @_;
 	
 	my $entry = $self->app->entry();
 	my $en = $entry->elm_entry();
 	my $cpos = $en->cursor_pos_get();
-	my $stext_markup = $self->entry()->text_get();
+	my $stext_markup = $self->elm_entry()->text_get();
 	my $stext = Efl::Elm::Entry::markup_to_utf8($stext_markup);
 	
 	return unless ($stext);
 	
-	my $rtext_markup = $self->replace_entry()->text_get();
+	my $rtext_markup = $self->elm_replace_entry()->text_get();
 	my $rtext = Efl::Elm::Entry::markup_to_utf8($rtext_markup);
 	
 	my $selected_text = $en->selection_get() || "";
@@ -343,7 +369,7 @@ sub current_search_column {
 sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
-	die("No method $AUTOLOAD implemented\n") unless $AUTOLOAD =~m/app|found|entry|replace_entry|widget|$/;
+	die("No method $AUTOLOAD implemented\n") unless $AUTOLOAD =~m/app|keysearch|refocus_replace|found|elm_entry|elm_replace_entry|elm_widget|elm_search_button|$/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;

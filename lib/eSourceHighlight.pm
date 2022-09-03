@@ -246,6 +246,28 @@ sub key_down {
 	elsif ($modifiers == 2 && $keyname eq "y") {
 		eSourceHighlight::Entry::redo($self->entry);
 	}
+	elsif ($modifiers == 2 && $keyname eq "f") {
+		my $search = $self->entry->search();
+		my $widget = $search->elm_widget();
+		if ($widget->visible_get()) {
+			$search->elm_entry->focus_set(1);
+			$search->elm_entry->select_all();
+		}
+		else {
+			$self->toggle_find();
+		}
+	}
+	elsif ($modifiers == 2 && $keyname eq "r") {
+		my $search = $self->entry->search();
+		my $widget = $search->elm_widget();
+		if ($widget->visible_get()) {
+			$search->elm_replace_entry->focus_set(1);
+			$search->elm_replace_entry->select_all();
+		}
+		else {
+			$self->toggle_find();
+		}
+	}
 } 
 
 sub on_exit {
@@ -495,7 +517,7 @@ sub _close_tab_cb {
 sub toggle_find {
 	my ($self, $obj, $event) = @_;
 	
-	my $widget = $self->entry->search->widget();
+	my $widget = $self->entry->search->elm_widget();
 	my $searchbar = $self->elm_searchbar();
 	
 	if ($widget->visible_get()) {
@@ -505,6 +527,7 @@ sub toggle_find {
 	else {
 		$widget->show();
 		$searchbar->pack_end($widget);
+		$widget->focus_set(1);
 		#$searchbar->show();
 	}
 }
