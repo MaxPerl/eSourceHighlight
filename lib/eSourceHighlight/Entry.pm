@@ -338,7 +338,7 @@ sub auto_indent {
 				my $auto_indent_undo = {
 					content => $tabs,
 					plain_length => $plain_length,
-					pos => $cursor_pos+1,
+					pos => $cursor_pos,
 				};
 				push @{$current_tab->undo_stack}, $auto_indent_undo;
 			}
