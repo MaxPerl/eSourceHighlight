@@ -18,7 +18,7 @@ use File::ShareDir 'dist_dir';
 
 use File::HomeDir;
 use File::Basename;
-use Cwd qw(abs_path);
+use Cwd qw(abs_path getcwd);
 
 use eSourceHighlight::Tab;
 use eSourceHighlight::Entry;
@@ -305,7 +305,7 @@ sub file_cb {
 		(undef, $path, undef) = fileparse( $self->current_tab->filename );
 	}
 	else { 
-		$path = File::HomeDir->my_home;
+		$path = getcwd || File::HomeDir->my_home;
 	}
 	$fs->path_set($path);
 	$fs->expandable_set(0);

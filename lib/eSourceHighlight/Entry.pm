@@ -319,9 +319,14 @@ sub auto_indent {
 		
 			$entry->cursor_pos_set($cursor_pos);
 			
-			if ($text =~ m/^<tab\/>/) {
+			if ($text =~ m/^<tab\/>/ || $text =~ m/^\s/) {
 				my $tabs = ""; 
 				my $plain_length = 0;
+				while ($text =~ s/^ //) {
+					$tabs = $tabs . " ";
+					$plain_length++;
+					print "PLAIN LENGTH $plain_length\n";
+				}
 				while ($text =~ s/^<tab\/>//) {
 					$tabs = $tabs . "<tab\/>";
 					$plain_length++;
