@@ -86,11 +86,11 @@ sub init_search {
 	
 	
 	my $lbl = Efl::Elm::Label->add($table);
-   	$lbl->text_set("Search term");
-   	$lbl->size_hint_align_set(EVAS_HINT_FILL, 0.5);
-   	$lbl->size_hint_weight_set(0.0, 0.0);
-   	$table->pack($lbl, 0, 0, 1, 1);
-   	$lbl->show();
+	$lbl->text_set("Search term");
+	$lbl->size_hint_align_set(EVAS_HINT_FILL, 0.5);
+	$lbl->size_hint_weight_set(0.0, 0.0);
+	$table->pack($lbl, 0, 0, 1, 1);
+	$lbl->show();
    	
    	my $entry = Efl::Elm::Entry->add($table);
    	$entry->scrollable_set(1);
@@ -196,17 +196,19 @@ sub do_search {
 	my $text = Efl::Elm::Entry::markup_to_utf8($text_markup);
 	
 	return unless ($text);
+	$text = Encode::decode("UTF8",$text,Encode::FB_CROAK);
+	
 	
 	# Workaround that length works properly on the Elementary Utf8 Format
-	Encode::_utf8_on($text);
+	#Encode::_utf8_on($text);
 	#print "TEXT DECODED " . Encode::decode("utf-8", $text) . "\n";
 	#my $length = length(Encode::decode("UTF8",$text));
 	my $length = length($text);
-	Encode::_utf8_off($text);
+	#Encode::_utf8_off($text);
 	
 	my $cursor_pos = $en->cursor_pos_get();
 	
-	if (scalar( @{$search->found} < 1 )) {
+	if (scalar( @{$search->found} ) < 1 ) {
 		my @found;
 		my $textblock = $en->textblock_get();
 		my $cp = Efl::Evas::TextblockCursor->new($textblock);
@@ -215,8 +217,9 @@ sub do_search {
 			$cp->line_char_first();
 			my $line_char_first = $cp->pos_get();
 			
-			my $line_text = $cp->paragraph_text_get();
+			my $line_text = $cp->paragraph_text_get(); 
 			$line_text = Efl::Elm::Entry::markup_to_utf8($line_text);
+			$line_text = Encode::decode("UTF8",$line_text,Encode::FB_CROAK);
 			
 			my $col; my $start = 0;
 			while ( ( $col = index($line_text,$text,$start) ) != -1 ) {
@@ -234,6 +237,7 @@ sub do_search {
 		$cp->free();
 	}
 	
+	return if (scalar( @{$search->found} ) < 1);
 	my $i;
 	
 	my $last_index = scalar( @{$search->found} ) - 1;

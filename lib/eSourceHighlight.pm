@@ -455,9 +455,11 @@ sub open_file {
 		# Workaround: Through inserting changed event is triggered
 		$self->current_tab->changed(0);
 		$self->current_tab->elm_toolbar_item->text_set($name);
+		
+		$en->cursor_pos_set(0);
 	}
 	else {
-		warn "Could not open file $selected\n";
+		die "Could not open file $selected\n";
 	}
 }
 sub _fs_open_done {

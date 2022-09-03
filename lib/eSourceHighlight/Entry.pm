@@ -157,7 +157,7 @@ sub changed {
 			$self->rehighlight_lines($entry, $new_undo);	
 		}
 		else {
-			print "Set rehighlight yes in change\n";
+			#print "Set rehighlight yes in change\n";
 			$self->rehighlight("yes");
 		}
 	}
@@ -354,7 +354,7 @@ sub auto_indent {
 
 sub on_paste {
 	my ($self) = @_;
-	print "Set rehighlight yes on paste event\n";
+	#print "Set rehighlight yes on paste event\n";
 	$self->rehighlight("yes");
 }
 
@@ -423,7 +423,7 @@ sub rehighlight_lines {
 	my $sh_lang = $self->app->current_tab->sh_lang(); 
 	return unless (defined($sh_lang));
 	
-	print "Set rehighlight no in rehighlight_lines\n";
+	#print "Set rehighlight no in rehighlight_lines\n";
 	$self->rehighlight("no");
 	
 	my $cursor_pos = $entry->cursor_pos_get();
