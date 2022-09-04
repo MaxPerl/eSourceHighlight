@@ -87,6 +87,8 @@ sub init_entry {
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	
+	$en->bounce_set(1,1);
+	$en->page_relative_set(1,1);
 	
 	$box->pack_end($en);
 	$en->show();
@@ -94,6 +96,7 @@ sub init_entry {
 	$self->app->entry($self);
 	$self->elm_entry($en);
 }
+
 
 # TODO: Move to eSourceHighlight::Tab
 sub determ_source_lang {
