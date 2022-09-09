@@ -47,6 +47,7 @@ sub new {
 	
 	my $obj = {
 		app => $app,
+		is_change_tab => "no",
 		is_undo => "no",
 		is_rehighlight => "no",
 		highlight => "no",
@@ -78,17 +79,18 @@ sub init_entry {
 	my $en = Efl::Elm::Entry->add($box);
 	$en->scrollable_set(1);
 	$en->autosave_set(0);
+	$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
+	
 	
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&line_column_get, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
-	
-	$en->bounce_set(1,1);
-	$en->page_relative_set(1,1);
+	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
+	$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
 	
 	$box->pack_end($en);
 	$en->show();
@@ -134,7 +136,7 @@ sub changed {
 	# Change Tab name, if changed status has changed
 	########################
 	my $current_tab = $self->app->current_tab();
-	$current_tab->changed($current_tab->changed+1);
+	$current_tab->changed($current_tab->changed()+1) if ($self->is_undo() eq "no" && $self->is_rehighlight() eq "no");
 	my $elm_it = $current_tab->elm_toolbar_item; 
 	my $title = $elm_it->text_get();
 	$elm_it->text_set("$title*") if ($current_tab->changed() && $title !~/\*$/);
@@ -175,9 +177,18 @@ sub changed {
 	# get line on del change 
 	########################
 	$self->get_line_on_del($change_info);
+	
 }
 
-
+sub text_set_done {
+	my ($self, $entry) = @_;
+	
+	if ($self->is_change_tab() eq "yes") {
+		my $pos = $self->app->current_tab->cursor_pos;
+		$entry->cursor_pos_set($pos);
+		$self->is_change_tab("no");
+	}
+}
 
 ########################
 # Fill undo stack
@@ -215,7 +226,10 @@ sub fill_undo_stack {
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
-			my $new_plain_length = $change->{insert}->{plain_length};
+			$insert_content = Efl::Elm::Entry::markup_to_utf8($insert_content); decode_entities($insert_content);
+			$insert_content = Encode::decode("UTF-8",$insert_content);
+			#my $new_plain_length = $change->{insert}->{plain_length};
+			my $new_plain_length = length($insert_content);
 			
 			# Make a new undo record, only if a new word starts, a tab is inserted or a newline
 			if ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content =~ m/\S/ && $insert_content ne "<br/>" && $insert_content ne "<tab/>" ) {
@@ -242,6 +256,16 @@ sub fill_undo_stack {
 		
 			my $start = $change->{del}->{start};
 			my $end = $change->{del}->{end};
+			
+			# If user starts selection on the right, end would be the start position 
+			# of the del event. This leads to problems at undo :-S
+			# therefore let start always be the start position of the del event
+			if ($end < $start) {
+				my $tmp;
+				$tmp = $start;
+				$start = $end;
+				$end = $tmp;
+			}
 			my $content = $change->{del}->{content};
 			
 			# BackSlash key is pressed
@@ -300,7 +324,7 @@ sub auto_indent {
 		$entry->cursor_line_end_set; $entry->cursor_selection_end();
 		
 		my $text = $entry->selection_get();
-		
+		#print "\nTEXT $text\n\n";
 		unless ($text) {
 			my $current_line = $self->current_line();
 			my $i;
@@ -329,7 +353,7 @@ sub auto_indent {
 				while ($text =~ s/^ //) {
 					$tabs = $tabs . " ";
 					$plain_length++;
-					print "PLAIN LENGTH $plain_length\n";
+					#print "PLAIN LENGTH $plain_length\n";
 				}
 				while ($text =~ s/^<tab\/>//) {
 					$tabs = $tabs . "<tab\/>";
@@ -378,10 +402,14 @@ sub highlight_str {
 	# Check whether there is a $sh_lang for the document
 	my $sh_obj = $self->sh_obj; 
 	my $sh_lm = $self->sh_langmap(); 
-	my $sh_lang = $self->app->current_tab->sh_lang(); 
-	if (defined($sh_lang)) {
+	my $sh_lang = $self->app->current_tab->sh_lang();
+	
+	if (defined($sh_lang) && $sh_lang =~ m/\.lang$/) {
 		#decode_entities($text);
 		$text = $sh_obj->highlightString($text,$sh_lang);
+	}
+	elsif (defined($sh_lang)) {
+		$text = $sh_obj->highlightString($text,$sh_lm->getMappedFileName($sh_lang));
 	}
 	# If there is no source highlight by the GNU source-highlight lib
 	# we must encode HTML entities (otherwise it is done by source-highlight!!)
@@ -394,9 +422,8 @@ sub highlight_str {
 	
 	return $text;
 }
-# This works if we open an utf8-text file
-# I think it could be problematic when pastin markup text???
-# then adapt rehighlight lines???
+
+
 sub rehighlight_all {
 	my ($self) = @_;
 	
@@ -521,9 +548,9 @@ sub undo {
 	my $current_tab = $self->app->current_tab();
 	
 	my $undo = pop @{$current_tab->undo_stack};
-	
+	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
+	# print "\n DO UNDO " . Dumper($undo) . "\n";
 	unless (defined($undo)) {
-		print "no undo found\n"; 
 		return;
 	}
 	push @{$current_tab->redo_stack}, $undo;
@@ -562,7 +589,14 @@ sub redo {
 	
 	push @{$current_tab->undo_stack}, $redo;
 	
-	if ($redo->{pos} >= 0) {
+	if ($redo->{del}) {
+		$self->is_undo("yes");
+		
+		$entry->select_region_set($redo->{start},$redo->{end});
+		
+		$entry->entry_insert("");
+	}
+	elsif ($redo->{pos} >= 0) {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes") is not needed 
@@ -572,12 +606,7 @@ sub redo {
 		$entry->entry_insert($redo->{content});
 		$self->rehighlight_lines($entry), $redo;
 	}
-	elsif ($redo->{del}) {
-		$self->is_undo("yes");
-		
-		$entry->select_region_set($redo->{start},$redo->{end});
-		$entry->entry_insert("");
-	}
+	
 
 }
 
@@ -710,7 +739,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/is_undo|is_rehighlight|highlight|rehighlight|current_line|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
+		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;

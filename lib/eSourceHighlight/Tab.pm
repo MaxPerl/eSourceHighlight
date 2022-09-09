@@ -62,6 +62,7 @@ sub new {
 ############################
 # Accessors
 ############################
+
 sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
@@ -72,7 +73,7 @@ sub AUTOLOAD {
 	$attrib =~ s/.*://;
 	
 	my $oldval = $self->{$attrib};
-	$self->{$attrib} = $newval if $newval;
+	$self->{$attrib} = $newval if defined($newval);
 	
 	return $oldval;
 }

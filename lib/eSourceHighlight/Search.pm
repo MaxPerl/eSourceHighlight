@@ -122,8 +122,8 @@ sub init_search {
 	$table->show();
 	$big_box->pack_end($table);
    	
-   	my $box2 = Efl::Elm::Box->add($parent);
-   	$box2->homogeneous_set(0);
+	my $box2 = Efl::Elm::Box->add($parent);
+	$box2->homogeneous_set(0);
 	$box2->padding_set(15,0);
 	$box2->horizontal_set(1);
 	$box2->size_hint_align_set(1.0, EVAS_HINT_FILL);
@@ -135,44 +135,35 @@ sub init_search {
 	$wrapped_text->text_set("Reached end of file, starting from beginning");
 	$box2->pack_end($wrapped_text);
 	
-	my $checkbox = Efl::Elm::Check->add($parent);
-	$checkbox->text_set("Wrap search?");
-	$checkbox->state_set(1);
-	$checkbox->show();
-	$box2->pack_end($checkbox);
-	
 	my $btn = Efl::Elm::Button->add($parent);
 	$btn->text_set("Search");
-   	$btn->size_hint_align_set(1.0, 0.0);
-   	$btn->size_hint_weight_set(0.0, 0.0);
-   	$btn->show();
-   	$box2->pack_end($btn);
-   	$btn->smart_callback_add("clicked", \&search_clicked, $self);
-   	
-   	my $replace_btn = Efl::Elm::Button->add($parent);
+	$btn->size_hint_align_set(1.0, 0.0);
+	$btn->size_hint_weight_set(0.0, 0.0);  
+	$btn->show();
+	$box2->pack_end($btn);
+	$btn->smart_callback_add("clicked", \&search_clicked, $self);
+	
+	my $replace_btn = Efl::Elm::Button->add($parent);
 	$replace_btn->text_set("Replace");
-   	$replace_btn->size_hint_align_set(1.0, 0.0);
-   	$replace_btn->size_hint_weight_set(0.0, 0.0);
-   	$replace_btn->show();
-   	$box2->pack_end($replace_btn);
-   	$replace_btn->smart_callback_add("clicked", \&replace_clicked, $self);
+	$replace_btn->size_hint_align_set(1.0, 0.0);
+	$replace_btn->size_hint_weight_set(0.0, 0.0);
+	$replace_btn->show();
+	$box2->pack_end($replace_btn);
+	$replace_btn->smart_callback_add("clicked", \&replace_clicked, $self);
    	
-   	my $cancel_btn = Efl::Elm::Button->add($parent);
+	my $cancel_btn = Efl::Elm::Button->add($parent);
 	$cancel_btn->text_set("Cancel");
-   	$cancel_btn->size_hint_align_set(1.0, 0.0);
-   	$cancel_btn->size_hint_weight_set(0.0, 0.0);
-   	$cancel_btn->show();
-   	$box2->pack_end($cancel_btn);
-   	$cancel_btn->smart_callback_add("clicked", \&cancel_clicked, $app->entry);
-   	
-   	#$self->wrapped_text($wrapped_text);
-   	$self->elm_entry($entry);
-   	$self->elm_replace_entry($replace_entry);
-   	$self->elm_search_button($btn);
-   	#$self->parent($parent);
-   	$self->elm_widget($big_box);
-   	#$self->checkbox($checkbox);
-   	$app->entry->search($self);
+	$cancel_btn->size_hint_align_set(1.0, 0.0);
+	$cancel_btn->size_hint_weight_set(0.0, 0.0);
+	$cancel_btn->show();
+	$box2->pack_end($cancel_btn);
+	$cancel_btn->smart_callback_add("clicked", \&cancel_clicked, $app->entry);
+	
+	$self->elm_entry($entry);
+	$self->elm_replace_entry($replace_entry);
+	$self->elm_search_button($btn);
+	$self->elm_widget($big_box);
+	$app->entry->search($self);
    	
 }
 

@@ -13,6 +13,7 @@ use Efl::Evas;
 use Efl::Ecore;
 use Efl::Ecore::EventHandler;
 use Efl::Ecore::Event::Key;
+use Efl::Elm::Config;
 
 use File::ShareDir 'dist_dir';
 
@@ -80,6 +81,7 @@ sub init_ui {
 	my ($self) = @_;
 	
 	Efl::Elm::init($#ARGV, \@ARGV);
+	Efl::Elm::Config::scroll_accel_factor_set(1);
 	Efl::Elm::policy_set(ELM_POLICY_QUIT, ELM_POLICY_QUIT_LAST_WINDOW_CLOSED);
 	my $win = Efl::Elm::Win->util_standard_add("eSourceHighlight", "eSourceHighlight");
 	$win->smart_callback_add("delete,request" => \&on_exit, $self);
@@ -215,8 +217,82 @@ sub add_menu {
 	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
 	$about_it->content_set($ic);
 	
+	my $src_format_it = $menu->item_add($doc_it,undef,"Set source format",\&set_src_format,$self);
+	
 	# Keyboard shortcuts
 	Efl::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
+}
+
+sub set_src_format {
+	my ($self) = (@_);
+	
+	my $src_win = Efl::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
+	$src_win->focus_highlight_enabled_set(1);
+	$src_win->autodel_set(1);
+	
+	my $bx = Efl::Elm::Box->add($src_win);
+	$bx->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+	$bx->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
+	$bx->show();
+	
+	my $list = Efl::Elm::Genlist->new($bx);
+	$list->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+	$list->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
+	$list->show();
+	
+	my $itc = Efl::Elm::GenlistItemClass->new();
+	$itc->item_style("default");
+	$itc->text_get(\&src_genlist_text_get);
+	
+	my $lm = $self->entry->sh_langmap();
+	$lm->getMappedFileName("perl") ;
+	my $langs = $lm->getLangNames();
+	my @langs = @$langs;
+	
+	
+	foreach my $lang (@langs) {
+		$list->item_append($itc,$lang, undef, ELM_GENLIST_ITEM_NONE(), \&_select_src_highlight, $self);	
+	}
+	
+	my $btn = Efl::Elm::Button->add($bx);
+	$btn->size_hint_weight_set(EVAS_HINT_EXPAND,0);
+	$btn->size_hint_align_set(EVAS_HINT_FILL,0);
+	$btn->text_set("Cancel");
+	$btn->smart_callback_add("clicked" => sub {$src_win->del()}, undef);
+	$btn->show();
+	
+	$bx->pack_end($list);
+	$bx->pack_end($btn);
+
+	$src_win->resize_object_add($bx);
+	$src_win->resize(250,200);
+	
+	$src_win->show();
+	
+	return $src_win;
+}
+
+sub _select_src_highlight {
+	my ($self, $obj, $item) = @_;
+	$item = Efl::ev_info2obj($item,"ElmGenlistItemPtr");
+	
+	my $src_win = $obj->top_widget_get;
+	
+	my $lang = $item->text_get();
+	my $tab = $self->current_tab();
+	$tab->sh_lang($lang);
+	
+	$self->change_doctype_label();
+	
+	$self->entry->rehighlight_all() if ($tab->source_highlight() eq "yes");
+	
+	$src_win->del();
+}
+
+sub src_genlist_text_get {
+	my ($data, $obj, $part) = @_;
+	#print "LABEL $data\n";
+	return "$data";
 }
 
 sub key_down {
@@ -276,7 +352,7 @@ sub key_down {
 sub on_exit {
 	my ($self) = @_;
 	
-	my @unsaved = grep $_->changed(), @{$self->tabs()};
+	my @unsaved = grep $_->changed() > 0, @{$self->tabs()};
 	
 	if (@unsaved) {
 		my $popup = Efl::Elm::Popup->add($self->elm_mainwindow());
@@ -345,6 +421,7 @@ sub file_cb {
 	
 	return $fs;
 }
+
 sub about {
 	my ($self) = @_;
 	
@@ -607,7 +684,7 @@ sub push_tab {
 	my $filename = $tab->filename() || "Untitled";
 	
 	my ($name,$dirs,$suffix) = fileparse($filename);
-	$name = "$name*" if ($tab->changed());
+	$name = "$name*" if ($tab->changed()>0);
 	 
 	my $id = $#tabs;
 	
@@ -625,6 +702,7 @@ sub change_tab {
 	my $tabs = $self->tabs();
 	my $entry = $self->entry;
 	
+	
 		my $en=$entry->elm_entry;
 		if ( ref($self->current_tab) eq "eSourceHighlight::Tab") {
 			 my $current = $self->current_tab;
@@ -636,8 +714,9 @@ sub change_tab {
 		}
 		my $tab = $tabs->[$id];
 		$self->current_tab($tab);
+		
+		$entry->is_change_tab("yes");
 		$en->entry_set($tab->content);
-		$en->cursor_pos_set($tab->cursor_pos);
 		$en->focus_set(1);
 		
 		$self->change_doctype_label();
