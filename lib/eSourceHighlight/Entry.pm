@@ -223,6 +223,7 @@ sub fill_undo_stack {
 			my $prev_pos = $last_undo->{pos} || 0;
 			my $prev_char = $last_undo->{content};
 			my $prev_plain_length = $last_undo->{plain_length} || 0;
+			my $prev_content = $last_undo->{content} || "";
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
@@ -237,7 +238,7 @@ sub fill_undo_stack {
 				$new_undo->{pos} = $prev_pos;
 				
 				$new_undo->{plain_length} = $prev_plain_length + $new_plain_length;
-				$new_undo->{content} = $last_undo->{content} . $insert_content;
+				$new_undo->{content} = $prev_content . $insert_content;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
 			elsif ($insert_content) {
@@ -251,7 +252,7 @@ sub fill_undo_stack {
 		}
 		else {
 			my $prev_start = $last_undo->{start} || 1;
-			my $prev_content = $last_undo->{content};
+			my $prev_content = $last_undo->{content} || "";
 			my $prev_end = $last_undo->{end} || 1;
 		
 			my $start = $change->{del}->{start};
