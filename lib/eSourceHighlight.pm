@@ -124,7 +124,6 @@ sub init_ui {
 		my $i = 0;
 		foreach my $fname (@ARGV) {
 			my $filename = abs_path($fname);
-			print "open $filename \n";
 			$self->open_file($filename);
 		}
 	}
@@ -598,17 +597,34 @@ sub _fs_open_done {
 sub _close_tab_cb {
 	my ($self) = @_;
 	
-	my @tabs = @{$self->tabs}; 
 	my $current_tab = $self->current_tab();
-	my $tab_id = $current_tab->id();
-	print "Removing Tab with ID $tab_id\n";
 	
-	$self->clear_tabs();
-	
-	splice @tabs,$tab_id,1;
-	
-	$self->refresh_tabs(@tabs);
-	
+	if ($current_tab->changed() > 0) {
+		my $popup = Efl::Elm::Popup->add($self->elm_mainwindow());
+		
+		$popup->part_text_set("default","Warning: Tab contains unsaved content. Close anyway?");
+		
+		my $btn1 = Efl::Elm::Button->add($popup);
+		$btn1->text_set("Okay");
+		$btn1->smart_callback_add("clicked" => sub {$current_tab->changed(0); $popup->del(); $self->_close_tab_cb});
+		
+		my $btn2 = Efl::Elm::Button->add($popup);
+		$btn2->text_set("Cancel");
+		$btn2->smart_callback_add("clicked" => sub {$popup->del});
+		
+		$popup->part_content_set("button1", $btn1);
+		$popup->part_content_set("button2", $btn2);
+		
+		$popup->show();
+	}
+	else {
+		
+		my @tabs = @{$self->tabs}; 
+		my $tab_id = $current_tab->id();
+		$self->clear_tabs();
+		splice @tabs,$tab_id,1;
+		$self->refresh_tabs(@tabs);
+	}
 }
 
 sub toggle_find {
@@ -685,7 +701,6 @@ sub refresh_tabs {
 	my $id = 0;
 	foreach my $tab (@tabs) {
 		$self->push_tab($tab);
-		print "Adding Tabsbar with ID $id\n";
 		$tab->id($id);
 		$id++;
 	}
@@ -768,8 +783,6 @@ sub change_tab {
 		# Clear search results
 		######################
 		$self->entry()->search()->clear_search_results();
-		
-		print "CHANGED TO $id TAB: CHANGED STATUS " . $self->current_tab->changed() . "\n";
 		
 }
 
