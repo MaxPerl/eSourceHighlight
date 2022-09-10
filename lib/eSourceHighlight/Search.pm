@@ -86,13 +86,13 @@ sub init_search {
 	$table->pack($lbl, 0, 0, 1, 1);
 	$lbl->show();
    	
-   	my $entry = Efl::Elm::Entry->add($table);
-   	$entry->scrollable_set(1);
-   	$entry->single_line_set(1);
-   	$entry->size_hint_align_set(EVAS_HINT_FILL, 0.0);
-   	$entry->size_hint_weight_set(EVAS_HINT_EXPAND, 0.0);
-   	$table->pack($entry, 1, 0, 1, 1);
-   	$entry->show();
+	my $entry = Efl::Elm::Entry->add($table);
+	$entry->scrollable_set(1);
+	$entry->single_line_set(1);
+	$entry->size_hint_align_set(EVAS_HINT_FILL, 0.0);
+	$entry->size_hint_weight_set(EVAS_HINT_EXPAND, 0.0);
+	$table->pack($entry, 1, 0, 1, 1);
+	$entry->show();
    	
    	$entry->smart_callback_add("changed",\&search_entry_changed,$self);
    	$entry->smart_callback_add("activated",\&search_entry_activated,$self);
@@ -236,6 +236,7 @@ sub do_search {
 			$found_pos = $search->found->[0];
 			$en->cursor_pos_set($found_pos);
 			$en->select_region_set($found_pos, $found_pos + $length);
+			$entry->set_linecolumn_label();
 			last;
 		}
 		elsif ($cursor_pos > $found_pos ) {
@@ -244,6 +245,7 @@ sub do_search {
 		else {
 			$en->cursor_pos_set($found_pos);
 			$en->select_region_set($found_pos, $found_pos + $length);
+			$entry->set_linecolumn_label();
 			last;
 		}
 	}

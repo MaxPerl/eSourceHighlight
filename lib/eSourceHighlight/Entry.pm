@@ -721,14 +721,20 @@ sub get_line_on_del {
 		my $content = $change->{insert}->{content};
 	
 		if ($content eq "<br/>") {
-			my $line = $self->line_get();
-			my $column = $self->column_get();
-			my $label = $self->app->elm_linecolumn_label();
-			return unless(defined($label));
-			$label->text_set("Line: $line Column: $column");
-			$self->current_line($line);
+			$self->set_linecolumn_label();
 		}
 	}
+}
+
+sub set_linecolumn_label {
+	my ($self) = @_;
+	
+	my $line = $self->line_get();
+	my $column = $self->column_get();
+	my $label = $self->app->elm_linecolumn_label();
+	return unless(defined($label));
+	$label->text_set("Line: $line Column: $column");
+	$self->current_line($line);	
 }
 
 ######################

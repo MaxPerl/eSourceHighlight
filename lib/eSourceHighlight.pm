@@ -144,6 +144,9 @@ sub init_ui {
 sub init_tabsbar {
 	my ($self, $box) = @_;
 	my $tabsbar = Efl::Elm::Toolbar->add($box);
+	#$tabsbar->always_select_mode_set(1);
+	#$tabsbar->no_select_mode_set(1);
+	$tabsbar->homogeneous_set(1);
 	
 	$tabsbar->align_set(0);
    	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, EVAS_HINT_FILL);
@@ -153,6 +156,17 @@ sub init_tabsbar {
 	$tabsbar->shrink_mode_set(ELM_TOOLBAR_SHRINK_SCROLL);
 	$tabsbar->transverse_expanded_set(1);
 	$box->pack_end($tabsbar);
+	
+	# This is very tricky
+	# _close_tab_cb only works if the right tab is selected
+	# the easiest solution would be to make an own menu for each toolbar item
+	# unfortunately this does not work (because items can not have own evas (smart) events
+	# therefore the solution here is only to show the menu when a left click occurs at the
+	# selected tab item (see show_tab_menu)
+	my $menu = Efl::Elm::Menu->add($tabsbar);
+	$menu->item_add(undef,undef,"Close tab",\&_close_tab_cb,$self);
+	$tabsbar->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN,\&show_tab_menu,$menu);
+	$tabsbar->smart_callback_add("unselected",\&_no_change_tab,$self);
 
 	$tabsbar->show();
 }
@@ -439,6 +453,7 @@ sub about {
 	$popup->show();
 	
 }
+
 sub _open_cb {
 	my ($self) = @_;
 	
@@ -508,6 +523,7 @@ sub _fs_save_done {
 	
 	$self->save();
 }
+
 sub open_file {
 	my ($self, $selected) = @_;
 	
@@ -564,6 +580,7 @@ sub open_file {
 		die "Could not open file $selected\n";
 	}
 }
+
 sub _fs_open_done {
 	my ($self, $obj, $ev_info) = @_;
 	
@@ -688,13 +705,38 @@ sub push_tab {
 	 
 	my $id = $#tabs;
 	
-	my $tab_item = $tabsbar->item_append(undef,$name,\&change_tab , [$self, $id]);
+	my $tab_item = $tabsbar->item_append(undef,$name, \&change_tab, [$self, $id]);
+	
 	$tab->elm_toolbar_item($tab_item);
 	$tab_item->selected_set(1);
 }
 
+
+sub show_tab_menu {
+	my ($menu, $evas, $obj, $evinfo) = @_;
+	my $ev = Efl::ev_info2obj($evinfo, "Efl::Evas::Event::MouseDown");
+	
+	my $selected = $obj->selected_item_get();
+	my $track = $selected->track();
+	my ($x,$y,$w,$h) = $track->geometry_get();
+	$selected->untrack();
+	my $canvas = $ev->canvas();
+	return unless ($canvas->{x} > $x && $canvas->{x} < $x+$w);
+	
+	if ($ev->button == 3) {
+		$menu->move($canvas->{x},$canvas->{y});
+		$menu->show();
+	}
+}
+
+sub _no_change_tab {
+	my ($data, $obj, $ev_info) = @_;
+	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
+	$tabitem->selected_set(1);
+} 
 sub change_tab {
 	my ($data, $obj, $ev_info) = @_;
+	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
 	
 	my $self = $data->[0];
 	my $id = $data->[1];
@@ -728,6 +770,7 @@ sub change_tab {
 		$self->entry()->search()->clear_search_results();
 		
 		print "CHANGED TO $id TAB: CHANGED STATUS " . $self->current_tab->changed() . "\n";
+		
 }
 
 sub change_doctype_options {
