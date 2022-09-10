@@ -726,6 +726,8 @@ sub change_tab {
 		# Clear search results
 		######################
 		$self->entry()->search()->clear_search_results();
+		
+		print "CHANGED TO $id TAB: CHANGED STATUS " . $self->current_tab->changed() . "\n";
 }
 
 sub change_doctype_options {
