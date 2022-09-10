@@ -143,8 +143,7 @@ sub init_ui {
 sub init_tabsbar {
 	my ($self, $box) = @_;
 	my $tabsbar = Efl::Elm::Toolbar->add($box);
-	#$tabsbar->always_select_mode_set(1);
-	#$tabsbar->no_select_mode_set(1);
+	
 	$tabsbar->homogeneous_set(1);
 	
 	$tabsbar->align_set(0);
@@ -304,7 +303,6 @@ sub _select_src_highlight {
 
 sub src_genlist_text_get {
 	my ($data, $obj, $part) = @_;
-	#print "LABEL $data\n";
 	return "$data";
 }
 
@@ -386,7 +384,6 @@ sub on_exit {
 		$popup->show();
 	}
 	else {
-		$self->clear_tabs();
 		Efl::Elm::exit();
 	}
 }
