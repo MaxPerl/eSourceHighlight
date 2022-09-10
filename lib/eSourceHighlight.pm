@@ -386,6 +386,7 @@ sub on_exit {
 		$popup->show();
 	}
 	else {
+		$self->clear_tabs();
 		Efl::Elm::exit();
 	}
 }
@@ -597,6 +598,7 @@ sub _fs_open_done {
 sub _close_tab_cb {
 	my ($self) = @_;
 	
+	my @tabs = @{$self->tabs}; 
 	my $current_tab = $self->current_tab();
 	
 	if ($current_tab->changed() > 0) {
@@ -618,12 +620,14 @@ sub _close_tab_cb {
 		$popup->show();
 	}
 	else {
-		
-		my @tabs = @{$self->tabs}; 
 		my $tab_id = $current_tab->id();
 		$self->clear_tabs();
 		splice @tabs,$tab_id,1;
 		$self->refresh_tabs(@tabs);
+	}
+	
+	if ($#tabs < 0 ) {
+		Efl::Elm::exit();
 	}
 }
 
