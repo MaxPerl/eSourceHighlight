@@ -115,7 +115,8 @@ sub determ_source_lang {
 	
 	# Workaround: Source Highlight 
 	$lang = $lang eq "prolog.lang" ? "perl.lang" : $lang;
-	$self->app->current_tab->sh_lang($lang);
+	
+	$self->app->current_tab->sh_lang($lang) if ($lang);
 	
 	return;
 }

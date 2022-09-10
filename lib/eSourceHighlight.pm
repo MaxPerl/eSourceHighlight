@@ -164,7 +164,7 @@ sub init_tabsbar {
 	my $menu = Efl::Elm::Menu->add($tabsbar);
 	$menu->item_add(undef,undef,"Close tab",\&_close_tab_cb,$self);
 	$tabsbar->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN,\&show_tab_menu,$menu);
-	$tabsbar->smart_callback_add("unselected",\&_no_change_tab,$self);
+	$tabsbar->smart_callback_add("selected",\&_no_change_tab,$self);
 
 	$tabsbar->show();
 }
@@ -724,6 +724,8 @@ sub push_tab {
 	my $tab_item = $tabsbar->item_append(undef,$name, \&change_tab, [$self, $id]);
 	
 	$tab->elm_toolbar_item($tab_item);
+	
+	# Select the new item and deselect the actual selected item
 	$tab_item->selected_set(1);
 }
 
@@ -747,9 +749,12 @@ sub show_tab_menu {
 
 sub _no_change_tab {
 	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
-	$tabitem->selected_set(1);
+	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");		
+	unless ($obj->selected_item_get()) {
+		$tabitem->selected_set(1);
+	}
 } 
+
 sub change_tab {
 	my ($data, $obj, $ev_info) = @_;
 	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
@@ -761,29 +766,29 @@ sub change_tab {
 	my $entry = $self->entry;
 	
 	
-		my $en=$entry->elm_entry;
-		if ( ref($self->current_tab) eq "eSourceHighlight::Tab") {
-			 my $current = $self->current_tab;
-			 $current->content($en->entry_get);
-			 $current->cursor_pos($en->cursor_pos_get());
-		}
-		else {
-			warn "Warn: This is very curious :-S There is no current tab???\n";
-		}
-		my $tab = $tabs->[$id];
-		$self->current_tab($tab);
+	my $en=$entry->elm_entry;
+	if ( ref($self->current_tab) eq "eSourceHighlight::Tab") {
+		 my $current = $self->current_tab;
+		 $current->content($en->entry_get);
+		 $current->cursor_pos($en->cursor_pos_get());
+	}
+	else {
+		warn "Warn: This is very curious :-S There is no current tab???\n";
+	}
+	my $tab = $tabs->[$id];
+	$self->current_tab($tab);
 		
-		$entry->is_change_tab("yes");
-		$en->entry_set($tab->content);
-		$en->focus_set(1);
+	$entry->is_change_tab("yes");
+	$en->entry_set($tab->content);
+	$en->focus_set(1);
 		
-		$self->change_doctype_label();
-		$self->change_doctype_options();
+	$self->change_doctype_label();
+	$self->change_doctype_options();
 		
-		######################
-		# Clear search results
-		######################
-		$self->entry()->search()->clear_search_results();
+	######################
+	# Clear search results
+	######################
+	$self->entry()->search()->clear_search_results();
 		
 }
 
