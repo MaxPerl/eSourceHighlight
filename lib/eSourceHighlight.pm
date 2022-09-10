@@ -339,23 +339,41 @@ sub key_down {
 	elsif ($modifiers == 2 && $keyname eq "f") {
 		my $search = $self->entry->search();
 		my $widget = $search->elm_widget();
+		my $entry = $self->entry->elm_entry();
+		
+		my $text = $entry->selection_get();
+		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
+			$search->elm_entry->entry_set($text) if ($text);
 			$search->elm_entry->select_all();
 		}
 		else {
 			$self->toggle_find();
+			if ($text) {
+				$search->elm_entry->entry_set($text);
+				$search->elm_entry->select_all();
+			}
 		}
 	}
 	elsif ($modifiers == 2 && $keyname eq "r") {
 		my $search = $self->entry->search();
 		my $widget = $search->elm_widget();
+		my $entry = $self->entry->elm_entry();
+		
+		my $text = $entry->selection_get();
+		
 		if ($widget->visible_get()) {
-			$search->elm_replace_entry->focus_set(1);
-			$search->elm_replace_entry->select_all();
+			$search->elm_entry->focus_set(1);
+			$search->elm_entry->entry_set($text) if ($text);
+			$search->elm_entry->select_all();
 		}
 		else {
 			$self->toggle_find();
+			if ($text) {
+				$search->elm_entry->entry_set($text);
+				$search->elm_entry->select_all();
+			}
 		}
 	}
 } 
