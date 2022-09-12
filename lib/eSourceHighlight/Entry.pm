@@ -123,7 +123,7 @@ sub determ_source_lang {
 
 
 sub changed {
-    my ($self, $entry, $ev) = @_;    			 
+    my ($self, $entry, $ev) = @_;		 
 	#print "\n\nCHANGE\n";
 	#print "IS UNDO " . $self->is_undo() . "\n";
 	#print "IS REHIGHLIGHT " . $self->is_rehighlight() . "\n";
@@ -181,6 +181,10 @@ sub changed {
 	
 }
 
+################################
+# After change tab event the cursor must be set on the
+# saved position
+################################
 sub text_set_done {
 	my ($self, $entry) = @_;
 	
@@ -518,6 +522,7 @@ sub rehighlight_lines {
 	else {
 		$self->rehighlight("yes");
 	}
+	
 	$entry->cursor_pos_set($cursor_pos);
 	
 }
