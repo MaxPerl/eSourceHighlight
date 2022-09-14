@@ -179,7 +179,12 @@ sub changed {
 	########################
 	$self->get_line_on_del($change_info);
 	
+	#######################
+	# highlight match braces
+	########################
+	$self->highlight_match_braces();
 }
+
 
 ################################
 # After change tab event the cursor must be set on the
@@ -303,9 +308,6 @@ sub fill_undo_stack {
 		
 		}
 	}
-	use Data::Dumper;
-	print "NEW UNDO " . Dumper($new_undo) . "\nUNDO STACK \n";
-	print Dumper(@{$current_tab->undo_stack}) . "\n";
 	return $new_undo;
 }
 
@@ -682,8 +684,6 @@ sub line_column_get {
 	
 	my $keyname = $e->keyname();
 	if ($keyname =~ m/Up|Down|KP_Next|KP_Prior|Return/) {
-		print "LINE COLUMN GET CURSOR POS " . $en->cursor_pos_get() . "\n";
-		
 		$lines = $self->line_get();
 	}
 	

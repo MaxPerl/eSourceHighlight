@@ -315,6 +315,7 @@ sub replace_clicked {
 	my $rtext = Efl::Elm::Entry::markup_to_utf8($rtext_markup);
 	
 	my $selected_text = $en->selection_get() || "";
+	$selected_text = Efl::Elm::Entry::markup_to_utf8($selected_text);
 	
 	if ($stext eq $selected_text) {
 		$en->entry_insert($rtext);
