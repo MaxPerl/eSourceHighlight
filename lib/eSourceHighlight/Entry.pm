@@ -56,7 +56,7 @@ sub new {
 		linewrap => "yes",
 		autoindent => "yes",
 		current_line => 0,
-		current_col => 0,
+		current_column => 0,
 		search => undef,
 		sh_obj => undef,
 		sh_langmap => undef,
@@ -232,10 +232,10 @@ sub fill_undo_stack {
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
-			$insert_content = Efl::Elm::Entry::markup_to_utf8($insert_content); decode_entities($insert_content);
-			$insert_content = Encode::decode("UTF-8",$insert_content);
+			my $insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content); decode_entities($insert_content_plain);
+			$insert_content_plain = Encode::decode("UTF-8",$insert_content);
 			#my $new_plain_length = $change->{insert}->{plain_length};
-			my $new_plain_length = length($insert_content);
+			my $new_plain_length = length($insert_content_plain);
 			
 			# Make a new undo record, only if a new word starts, a tab is inserted or a newline
 			if ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content =~ m/\S/ && $insert_content ne "<br/>" && $insert_content ne "<tab/>" ) {
@@ -303,7 +303,9 @@ sub fill_undo_stack {
 		
 		}
 	}
-	
+	use Data::Dumper;
+	print "NEW UNDO " . Dumper($new_undo) . "\nUNDO STACK \n";
+	print Dumper(@{$current_tab->undo_stack}) . "\n";
 	return $new_undo;
 }
 
@@ -318,54 +320,59 @@ sub auto_indent {
 	my $change = $change_info->change();
 	my $cursor_pos = $self->elm_entry->cursor_pos_get();
 	
-	
 	my $content = "";
+	
+	my $textblock = $entry->textblock_get();
+	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	
 	if ($change_info->insert()) {
 		$content = $change->{insert}->{content};
 	}
 	
 	if ($content eq "<br/>") {		
-		$entry->cursor_up();
-		$entry->cursor_line_begin_set; $entry->cursor_selection_begin();
-		$entry->cursor_line_end_set; $entry->cursor_selection_end();
-		
-		my $text = $entry->selection_get();
+		$cp1->pos_set($entry->cursor_pos_get() );
+		$cp1->paragraph_prev();
+		my $text = $cp1->paragraph_text_get();
+		$cp1->line_char_first(); 
 		#print "\nTEXT $text\n\n";
-		unless ($text) {
-			my $current_line = $self->current_line();
-			my $i;
-			for ($i=$current_line; $i>=0; $i--) {
-				$entry->cursor_up();
-				$entry->cursor_line_begin_set; $entry->cursor_selection_begin();
-				$entry->cursor_line_end_set; $entry->cursor_selection_end();
-				
-				$text = $entry->selection_get();
-				last if ($text);
-			}
-		}
+		# if there is no text, look at the lines above whether there is an indent
+		# but don't do it, if cursor_pos - cp_line_begin == 1, because then there is definitely no <tab> at the current line
+		#if (!$text && (($cursor_pos - $cp1->pos_get() ) > 1)) {
+		#	my $current_line = $self->current_line();
+		#	my $i;
+		#	for ($i=$current_line; $i>=0; $i--) {
+		#		$cp1->paragraph_prev();
+		#		$text = $entry->paragraph_text_get();
+		#		last if ($text);
+		#	}
+		#}
 		# if $entry->insert(undef|"") [e.g. two or more <br> are entered] is called, 
 		# then no "change" event is triggered
 		# that means: $self->is_undo("yes") applies also to the next change :-S
 		# therefore check, whether there is a text
 		if ($text) {				
-			$self->is_undo("yes");
-			$entry->entry_insert($text);
-		
-			$entry->cursor_pos_set($cursor_pos);
+			#$self->is_undo("yes");
+			#$entry->entry_insert($text);
+			#$entry->cursor_pos_set($cursor_pos);
 			
+			my $tabs = ""; 
 			if ($text =~ m/^<tab\/>/ || $text =~ m/^\s/) {
-				my $tabs = ""; 
 				my $plain_length = 0;
 				while ($text =~ s/^ //) {
 					$tabs = $tabs . " ";
 					$plain_length++;
 					#print "PLAIN LENGTH $plain_length\n";
 				}
+				
 				while ($text =~ s/^<tab\/>//) {
 					$tabs = $tabs . "<tab\/>";
 					$plain_length++;
 				}
-				$entry->entry_insert($tabs);
+				
+			
+			if ($tabs) {
+				
+				$entry->entry_insert($tabs) ;
 				
 				# Because there is no selection (?) the "change, MANUAL" event 
 				# isn't triggered. Therefore we must push the undo stack manually
@@ -374,11 +381,10 @@ sub auto_indent {
 					plain_length => $plain_length,
 					pos => $cursor_pos,
 				};
+				
 				push @{$current_tab->undo_stack}, $auto_indent_undo;
+				}
 			}
-		}
-		else {
-			$entry->cursor_pos_set($cursor_pos);
 		}	
 	}
 	
@@ -389,6 +395,7 @@ sub auto_indent {
 		#use Data::Dumper;
 		#print Dumper(@{$current_tab->undo_stack});
 	#}
+	$cp1->free();
 }
 
 sub on_paste {
@@ -675,17 +682,21 @@ sub line_column_get {
 	
 	my $keyname = $e->keyname();
 	if ($keyname =~ m/Up|Down|KP_Next|KP_Prior|Return/) {
+		print "LINE COLUMN GET CURSOR POS " . $en->cursor_pos_get() . "\n";
+		
 		$lines = $self->line_get();
 	}
 	
 	if ($lines) {
 		$label->text_set("Line: $lines Column: $column");
 		$self->current_line($lines);
+		$self->current_column($column);
 	}
 	else {
 		my $text = $label->text_get();
 		$text =~ s/(.*)Column:.*$/$1Column: $column/;
 		$label->text_set($text);
+		$self->current_column($column);
 	}
 
 	
@@ -752,13 +763,13 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
+		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|current_column|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;
 	
 	my $oldval = $self->{$attrib};
-	$self->{$attrib} = $newval if $newval;
+	$self->{$attrib} = $newval if defined($newval);
 	if ($attrib eq "rehighlight") {
 		#print "Highlight set to $newval\n" if $newval;
 	}
