@@ -38,7 +38,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.01';
+our $VERSION = '0.5';
 
 sub new {
 	my ($class, $app, $box) = @_;
@@ -55,13 +55,16 @@ sub new {
 		paste => "no",
 		linewrap => "yes",
 		autoindent => "yes",
+		match_braces => "yes",
 		current_line => 0,
 		current_column => 0,
+		match_braces_fmt => [],
 		search => undef,
 		sh_obj => undef,
 		sh_langmap => undef,
 		elm_entry => undef,
 		};
+	
 	bless($obj,$class);
 	$obj->init_entry($app,$box);
 	return $obj;
@@ -86,11 +89,12 @@ sub init_entry {
 	
 	
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
-	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&line_column_get, $self);
+	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
 	$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
+	
 	
 	$box->pack_end($en);
 	$en->show();
@@ -99,6 +103,13 @@ sub init_entry {
 	$self->elm_entry($en);
 }
 
+sub on_key_down {
+	my ($self, $evas, $en, $event) = @_;
+	
+	$self->line_column_get($evas, $en, $event);
+	
+	$self->highlight_match_braces() if ($self->match_braces eq "yes");
+}
 
 # TODO: Move to eSourceHighlight::Tab
 sub determ_source_lang {
@@ -128,9 +139,12 @@ sub changed {
 	#print "IS UNDO " . $self->is_undo() . "\n";
 	#print "IS REHIGHLIGHT " . $self->is_rehighlight() . "\n";
 	#print "REHIGHLIGHT " . $self->rehighlight() . "\n";
+	
 	my $change_info = Efl::ev_info2obj($ev,"Efl::Elm::EntryChangeInfo");
 	
 	my $change = $change_info->change();
+	
+	my $cpos = $entry->cursor_pos_get();
 	
 	
 	########################
@@ -159,14 +173,7 @@ sub changed {
 	# Source highlight
 	#########################
 	if ( $current_tab->source_highlight() eq "yes" ) {
-		
-		if ($self->rehighlight() eq "yes") {
-			$self->rehighlight_lines($entry, $new_undo);	
-		}
-		else {
-			#print "Set rehighlight yes in change\n";
-			$self->rehighlight("yes");
-		}
+		$self->rehighlight_lines($entry, $new_undo);
 	}
 	
 	######################
@@ -179,12 +186,205 @@ sub changed {
 	########################
 	$self->get_line_on_del($change_info);
 	
-	#######################
-	# highlight match braces
-	########################
-	$self->highlight_match_braces();
+	# Reset Cursor
+	$entry->cursor_pos_set($cpos);
+	
 }
 
+
+sub highlight_match_braces {
+	my ($self) = @_;
+	my $en = $self->elm_entry();
+	
+	my $textblock = $en->textblock_get();
+	if (scalar( @{ $self->match_braces_fmt}) >= 1) {
+	
+		foreach my $fcp (@{$self->match_braces_fmt}) {
+			my $fcp2 = Efl::Evas::TextblockCursor->new($textblock);
+			$fcp2->pos_set($fcp->pos_get()); $fcp2->char_next();$fcp2->char_next();
+			my $text = $fcp->range_text_get($fcp2, EVAS_TEXTBLOCK_TEXT_MARKUP); 
+			my @formats = $fcp->range_formats_get_pv($fcp2);
+			foreach my $format (@formats) {
+				$textblock->node_format_remove_pair($format) if ($format->text_get() eq "+ font_weight=bold");
+			}
+			$fcp->free();
+			$fcp2->free();
+		}
+		$self->match_braces_fmt([]);
+	}
+	
+	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
+	$cp1->pos_set($en->cursor_pos_get);
+	$cp2->pos_set($en->cursor_pos_get); $cp2->char_next();
+	my $char = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN) || "";
+	
+	
+	if ($char =~ m/^[\)\}\]]$/) {
+		my $depth = -1;
+		my $match_char;
+		if ($char eq ")") {
+			$match_char = "(";
+		}
+		elsif ($char eq "}") {
+			$match_char = "{";
+		}
+		elsif ($char eq "]") {
+			$match_char = "[";
+		}
+		
+		$cp1->line_char_first();
+		my $text = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
+		$text = Encode::decode("UTF-8",$text);
+		my $start = $cp2->pos_get() - $cp1->pos_get();
+		
+		while (1) {
+			my $match_pos = rindex($text,$match_char,$start);
+			my $search_pos = rindex($text, $char,$start);
+			
+			if ($match_pos == -1 && $search_pos == -1) {
+				last if ($cp1->pos_get() == 0);
+				$cp1->paragraph_prev();$cp1->line_char_first();
+				$text = $cp1->paragraph_text_get();
+				$text = Efl::Elm::Entry::markup_to_utf8($text);
+				$text = Encode::decode("UTF-8",$text);
+				$start = length($text);
+			}
+			elsif ($match_pos >$search_pos && $depth == 0) {
+				my $format_cp1 = Efl::Evas::TextblockCursor->new($textblock);
+				my $format_cp2 = Efl::Evas::TextblockCursor->new($textblock);
+				$cp1->pos_set($cp1->pos_get+$match_pos);
+				$cp1->copy($format_cp1);
+				push @{$self->match_braces_fmt}, $format_cp1; 
+				$cp1->format_append("<font_weight=bold>"); 
+				$cp1->char_next(); 
+				$cp1->format_append("</font_weight>");
+				
+				$cp2->char_prev(); 
+				$cp2->copy($format_cp2);
+				push @{$self->match_braces_fmt}, $format_cp2;
+				$cp2->format_append("<font_weight=bold>"); 
+				$cp2->char_next(); 
+				$cp2->format_append("</font_weight>");
+				
+				last;	
+			}
+			elsif ($match_pos == -1 && $search_pos != -1) {
+				$depth = $depth + 1;
+				$start = $search_pos-1;
+				if ($start == -1) {
+					$cp1->paragraph_prev(); $cp1->line_char_first();
+					$text = $cp1->paragraph_text_get();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = length($text);
+				}
+			}
+			elsif ($search_pos == -1 && $match_pos != -1) {
+				$depth--;
+				$start = $match_pos-1;
+				# problem: If match_pos == -1, then the loop never stops
+				if ($start == -1) {
+					$cp1->paragraph_prev(); $cp1->line_char_first();
+					$text = $cp1->paragraph_text_get();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = length($text);
+				}
+			}
+			else {
+				$start = $match_pos > $search_pos ? $match_pos : $search_pos;
+				$start--;
+				$depth = $match_pos > $search_pos ? ($depth-1) : ($depth + 1);
+			}
+		}
+		
+	}
+	elsif ($char =~ m/^[\(\{\[]$/) {
+		my $depth = 0;
+		my $match_char;
+		if ($char eq "(") {
+			$match_char = ")";
+		}
+		elsif ($char eq "{") {
+			$match_char = "}";
+		}
+		elsif ($char eq "[") {
+			$match_char = "]";
+		}
+		
+		$cp1->line_char_last();  
+		my $text = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_PLAIN);
+		$text = Encode::decode("UTF-8",$text);
+		my $found = undef; my $start = 0;
+		$cp1->pos_set($cp2->pos_get());
+		
+		while (1) {
+			my $match_pos = index($text,$match_char,$start);
+			my $search_pos = index($text, $char,$start);
+			
+			if ($match_pos == -1 && $search_pos == -1) {
+				last if (!$cp1->paragraph_next);
+				$cp1->line_char_first();
+				$text = $cp1->paragraph_text_get();
+				$text = Efl::Elm::Entry::markup_to_utf8($text);
+				$text = Encode::decode("UTF-8",$text);
+				$start = 0;
+			}
+			elsif ($match_pos == -1 && $search_pos != -1) {
+				$depth = $depth + 1;
+				$start = $search_pos+1;
+				if ($start == (length($text)-1)) {
+					$cp1->paragraph_next(); $cp1->line_char_first();
+					$text = $cp1->paragraph_text_get();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = 0;
+				}
+			}
+			elsif (($match_pos < $search_pos && $depth == 0) || ($search_pos == -1 && $match_pos != -1 && $depth == 0) ) {
+				my $format_cp1 = Efl::Evas::TextblockCursor->new($textblock);
+				my $format_cp2 = Efl::Evas::TextblockCursor->new($textblock);
+				$cp1->pos_set($cp1->pos_get+$match_pos);
+				$cp1->copy($format_cp1);
+				push @{$self->match_braces_fmt}, $format_cp1; 
+				$cp1->format_append("<font_weight=bold>"); 
+				$cp1->char_next(); 
+				$cp1->format_append("</font_weight>");
+				
+				$cp2->char_prev(); 
+				$cp2->copy($format_cp2);
+				push @{$self->match_braces_fmt}, $format_cp2;
+				$cp2->format_append("<font_weight=bold>"); 
+				$cp2->char_next(); 
+				$cp2->format_append("</font_weight>");
+				
+				last;	
+			}
+			elsif ($search_pos == -1 && $match_pos != -1) {
+				$depth--;
+				$start = $match_pos+1;
+				# problem: If match_pos == -1, then the loop never stops
+				if ($start == (length($text)-1)) {
+					$cp1->paragraph_next(); $cp1->line_char_first();
+					$text = $cp1->paragraph_text_get();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = 0;
+				}
+			}
+			else {
+				$start = $match_pos > $search_pos ? $match_pos : $search_pos;
+				$start++;
+				$depth = $match_pos > $search_pos ? ($depth-1) : ($depth + 1);
+			}
+		}
+		
+	}
+	
+	$cp1->free();
+	$cp2->free();
+}
 
 ################################
 # After change tab event the cursor must be set on the
@@ -198,7 +398,7 @@ sub text_set_done {
 		$entry->cursor_pos_set($pos);
 		$self->is_change_tab("no");
 	}
-}
+ }
 
 ########################
 # Fill undo stack
@@ -336,26 +536,8 @@ sub auto_indent {
 		$cp1->paragraph_prev();
 		my $text = $cp1->paragraph_text_get();
 		$cp1->line_char_first(); 
-		#print "\nTEXT $text\n\n";
-		# if there is no text, look at the lines above whether there is an indent
-		# but don't do it, if cursor_pos - cp_line_begin == 1, because then there is definitely no <tab> at the current line
-		#if (!$text && (($cursor_pos - $cp1->pos_get() ) > 1)) {
-		#	my $current_line = $self->current_line();
-		#	my $i;
-		#	for ($i=$current_line; $i>=0; $i--) {
-		#		$cp1->paragraph_prev();
-		#		$text = $entry->paragraph_text_get();
-		#		last if ($text);
-		#	}
-		#}
-		# if $entry->insert(undef|"") [e.g. two or more <br> are entered] is called, 
-		# then no "change" event is triggered
-		# that means: $self->is_undo("yes") applies also to the next change :-S
-		# therefore check, whether there is a text
+		
 		if ($text) {				
-			#$self->is_undo("yes");
-			#$entry->entry_insert($text);
-			#$entry->cursor_pos_set($cursor_pos);
 			
 			my $tabs = ""; 
 			if ($text =~ m/^<tab\/>/ || $text =~ m/^\s/) {
@@ -482,42 +664,45 @@ sub rehighlight_lines {
 	#print "Set rehighlight no in rehighlight_lines\n";
 	$self->rehighlight("no");
 	
-	my $cursor_pos = $entry->cursor_pos_get();
-	
+	my $textblock = $entry->textblock_get();
+	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
 	if (defined($undo)) {
 		if ($undo->{del}) {
 			# if there is a del event then we relight from the line before 
 			# the del event occured
-			$entry->cursor_pos_set($undo->{start});
-			$entry->cursor_up();
-			$entry->cursor_line_begin_set; $entry->cursor_selection_begin();
+			$cp1->pos_set($undo->{start});
+			$cp1->paragraph_prev();
+			$cp1->line_char_first;
 			
 			# .. to the line after the del event
-			$entry->cursor_pos_set($undo->{end});
-			$entry->cursor_down;$entry->cursor_down;
-			$entry->cursor_line_end_set; $entry->cursor_selection_end();
+			$cp2->pos_set($undo->{end});
+			$cp2->paragraph_next;$cp2->paragraph_next;
+			$cp2->line_char_last;
 		}
 		else {
 				
-			$entry->cursor_pos_set($undo->{pos});
-			$entry->cursor_up();$entry->cursor_up();
-			$entry->cursor_line_begin_set; $entry->cursor_selection_begin();
+			$cp1->pos_set($undo->{pos});
+			$cp1->paragraph_prev();$cp1->paragraph_prev();
+			$cp1->line_char_first;
 			
-			$entry->cursor_pos_set($undo->{pos}+$undo->{plain_length});
-			$entry->cursor_down();$entry->cursor_down();
-			$entry->cursor_line_end_set; $entry->cursor_selection_end();
+			$cp2->pos_set($undo->{pos}+$undo->{plain_length});
+			$cp2->paragraph_next;$cp2->paragraph_next;
+			$cp2->line_char_last;
 		}
 	}
 	else {
 		# Otherwiese we relight from the line before the actual cursor position...
-		$entry->cursor_up();
-		$entry->cursor_line_begin_set; $entry->cursor_selection_begin();
+		$cp1->pos_set($entry->cursor_pos_get());
+		$cp1->paragraph_prev();
+		$cp1->line_char_first;
 		
 		# .. to the line after the actual cursor position :-)
-		$entry->cursor_down;$entry->cursor_down;
-		$entry->cursor_line_end_set; $entry->cursor_selection_end();
+		$cp2->pos_set($entry->cursor_pos_get());
+		$cp2->paragraph_next;
+		$cp2->line_char_last;
 	}
-	my $text = $entry->selection_get();
+	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_MARKUP);
 	
 	$text = $self->highlight_str($text);
 	
@@ -525,15 +710,14 @@ sub rehighlight_lines {
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
 	# therefore check, whether there is a text
 	if ($text) {
-		$self->is_rehighlight("yes");
-		$entry->entry_insert($text);
-	}
-	else {
-		$self->rehighlight("yes");
+		#$self->is_rehighlight("yes");
+		#$entry->entry_insert($text);
+		$cp1->range_delete($cp2);
+		$cp1->text_markup_prepend($text)
 	}
 	
-	$entry->cursor_pos_set($cursor_pos);
-	
+	$cp1->free();
+	$cp2->free();	
 }
 
 sub clear_highlight {
@@ -698,7 +882,6 @@ sub line_column_get {
 		$label->text_set($text);
 		$self->current_column($column);
 	}
-
 	
 }
 
@@ -716,6 +899,9 @@ sub line_column_get_mouse {
 	my $button = $e->button();
 	if ($button == 1) {
 		$lines = $self->line_get();
+		
+		$self->highlight_match_braces();
+	
 	}
 	
 	if ($lines) {
@@ -763,7 +949,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|current_column|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
+		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|current_column|match_braces|match_braces_fmt|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;

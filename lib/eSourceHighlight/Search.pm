@@ -87,6 +87,7 @@ sub init_search {
 	$lbl->show();
    	
 	my $entry = Efl::Elm::Entry->add($table);
+	$entry->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
 	$entry->scrollable_set(1);
 	$entry->single_line_set(1);
 	$entry->size_hint_align_set(EVAS_HINT_FILL, 0.0);
@@ -109,6 +110,7 @@ sub init_search {
    	$replace_lbl->show();
    	
    	my $replace_entry = Efl::Elm::Entry->add($table);
+   	$replace_entry->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
    	$replace_entry->scrollable_set(1);
    	$replace_entry->single_line_set(1);
    	$replace_entry->size_hint_align_set(EVAS_HINT_FILL, 0.0);
@@ -183,14 +185,9 @@ sub do_search {
 	my $text = Efl::Elm::Entry::markup_to_utf8($text_markup);
 	
 	return unless ($text);
+	# Decode that length works properly on the Elementary Utf8 Format
 	$text = Encode::decode("UTF8",$text,Encode::FB_CROAK);
-	
-	# Workaround that length works properly on the Elementary Utf8 Format
-	#Encode::_utf8_on($text);
-	#print "TEXT DECODED " . Encode::decode("utf-8", $text) . "\n";
-	#my $length = length(Encode::decode("UTF8",$text));
 	my $length = length($text);
-	#Encode::_utf8_off($text);
 	
 	my $cursor_pos = $en->cursor_pos_get();
 	
@@ -239,13 +236,14 @@ sub do_search {
 			$entry->set_linecolumn_label();
 			last;
 		}
-		elsif ($cursor_pos > $found_pos ) {
+		elsif ($cursor_pos > $found_pos ) {	
 			next;
 		}
 		else {
 			$en->cursor_pos_set($found_pos);
-			$en->select_region_set($found_pos, $found_pos + $length);
 			$entry->set_linecolumn_label();
+			$en->focus_set(1);
+			$en->select_region_set($found_pos, $found_pos + $length);
 			last;
 		}
 	}
@@ -305,7 +303,6 @@ sub replace_clicked {
 	
 	my $entry = $self->app->entry();
 	my $en = $entry->elm_entry();
-	my $cpos = $en->cursor_pos_get();
 	my $stext_markup = $self->elm_entry()->text_get();
 	my $stext = Efl::Elm::Entry::markup_to_utf8($stext_markup);
 	
@@ -319,7 +316,8 @@ sub replace_clicked {
 	
 	if ($stext eq $selected_text) {
 		$en->entry_insert($rtext);
-		$en->select_none();$en->cursor_pos_set($cpos);
+		$en->select_none();
+		$self->clear_search_results();
 		$self->do_search($entry);
 	}
 	else {

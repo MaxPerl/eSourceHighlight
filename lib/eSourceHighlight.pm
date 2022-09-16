@@ -71,6 +71,7 @@ sub new {
 		elm_src_highlight_check => undef,
 		elm_linewrap_check => undef,
 		elm_autoident_check => undef, 
+		elm_match_braces_check => undef,
 		elm_linecolumn_label => undef};
 	bless($obj,$class);
 	
@@ -216,6 +217,11 @@ sub add_menu {
 	$autoident_it->content_set($autoident_check);
 	$self->elm_autoident_check($autoident_check);
 	
+	my $match_braces_check = Efl::Elm::Check->add($menu); $match_braces_check->state_set(1); 
+	my $match_braces_it = $menu->item_add($doc_it,"document-new","Highlight match braces",\&toggle_match_braces,$self);
+	$match_braces_it->content_set($match_braces_check);
+	$self->elm_match_braces_check($match_braces_check);
+	
 	my $src_highlight_check = Efl::Elm::Check->add($menu); $src_highlight_check->state_set(1); 
 	my $src_highlight_it = $menu->item_add($doc_it,"document-new","Source highlight",\&toggle_src_highlight,$self);
 	$src_highlight_it->content_set($src_highlight_check);
@@ -342,6 +348,7 @@ sub key_down {
 		my $entry = $self->entry->elm_entry();
 		
 		my $text = $entry->selection_get();
+		$text = Efl::Elm::Entry::markup_to_utf8($text);
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
@@ -362,6 +369,7 @@ sub key_down {
 		my $entry = $self->entry->elm_entry();
 		
 		my $text = $entry->selection_get();
+		$text = Efl::Elm::Entry::markup_to_utf8($text);
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
@@ -700,6 +708,24 @@ sub toggle_autoident {
 	}
 }
 
+
+sub toggle_match_braces {
+	my ($self, $obj, $ev) = @_;
+	my $check = $self->elm_match_braces_check();
+	
+	my $entry = $self->entry();
+	
+	if ($entry->match_braces() eq "yes") {
+		$entry->match_braces("no");
+		$check->state_set(0);
+	}
+	else {
+		$entry->match_braces("yes");
+		$check->state_set(1);
+	}
+}
+
+
 ##################################
 # tabsbar / tabs
 ##################################
@@ -807,6 +833,14 @@ sub change_tab {
 	# Clear search results
 	######################
 	$self->entry()->search()->clear_search_results();
+	
+	#######################
+	# Clear match braces cursors
+	#######################
+	foreach my $fcp (@{$self->entry->match_braces_fmt}) {
+		$fcp->free();
+	}
+	$self->entry->match_braces_fmt([]);
 		
 }
 
@@ -908,7 +942,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/tabs|entry|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_linecolumn_label/;
+		unless $AUTOLOAD =~m/tabs|entry|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_match_braces_check|elm_linecolumn_label/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;
