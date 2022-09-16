@@ -166,7 +166,7 @@ sub changed {
 	###########################
 	# Auto indent
 	##########################
-	$self->auto_indent($entry, $change_info) if ($self->autoindent() eq "yes");
+	my $new_cp = $self->auto_indent($entry, $change_info) if ($self->autoindent() eq "yes");
 	
 	
 	##########################
@@ -174,6 +174,7 @@ sub changed {
 	#########################
 	if ( $current_tab->source_highlight() eq "yes" ) {
 		$self->rehighlight_lines($entry, $new_undo);
+		# Reset Cursor
 	}
 	
 	######################
@@ -186,9 +187,8 @@ sub changed {
 	########################
 	$self->get_line_on_del($change_info);
 	
-	# Reset Cursor
+	$cpos = $new_cp ? $new_cp : $cpos;
 	$entry->cursor_pos_set($cpos);
-	
 }
 
 
@@ -398,6 +398,7 @@ sub text_set_done {
 		$entry->cursor_pos_set($pos);
 		$self->is_change_tab("no");
 	}
+	
  }
 
 ########################
@@ -518,6 +519,8 @@ sub fill_undo_stack {
 sub auto_indent {
 	my ($self,$entry,$change_info) = @_;
 	
+	my $new_cp = undef; 
+	
 	my $current_tab = $self->app->current_tab();
 	my $change = $change_info->change();
 	my $cursor_pos = $self->elm_entry->cursor_pos_get();
@@ -526,22 +529,26 @@ sub auto_indent {
 	
 	my $textblock = $entry->textblock_get();
 	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	$cp1->pos_set($cursor_pos);
+	#my $cp1= $textblock->cursor_get(); 
 	
 	if ($change_info->insert()) {
 		$content = $change->{insert}->{content};
 	}
 	
 	if ($content eq "<br/>") {		
-		$cp1->pos_set($entry->cursor_pos_get() );
+		#$cp1->pos_set($entry->cursor_pos_get() );
 		$cp1->paragraph_prev();
+		$cp1->line_char_first();
 		my $text = $cp1->paragraph_text_get();
-		$cp1->line_char_first(); 
-		
+		 
+		print "TEXT $text\n";
 		if ($text) {				
 			
-			my $tabs = ""; 
+			my $tabs = "";
+			my $plain_length = 0; 
 			if ($text =~ m/^<tab\/>/ || $text =~ m/^\s/) {
-				my $plain_length = 0;
+				
 				while ($text =~ s/^ //) {
 					$tabs = $tabs . " ";
 					$plain_length++;
@@ -555,8 +562,8 @@ sub auto_indent {
 				
 			
 			if ($tabs) {
-				
-				$entry->entry_insert($tabs) ;
+				$cp1->pos_set($cursor_pos);
+				$cp1->text_markup_prepend($tabs) ;
 				
 				# Because there is no selection (?) the "change, MANUAL" event 
 				# isn't triggered. Therefore we must push the undo stack manually
@@ -570,6 +577,7 @@ sub auto_indent {
 				}
 			}
 		}	
+		$new_cp = $cp1->pos_get();
 	}
 	
 	# For Debugging undo feature
@@ -580,6 +588,7 @@ sub auto_indent {
 		#print Dumper(@{$current_tab->undo_stack});
 	#}
 	$cp1->free();
+	return $new_cp;
 }
 
 sub on_paste {
@@ -867,9 +876,10 @@ sub line_column_get {
 	my $e = Efl::ev_info2obj($event, "Efl::Ecore::Event::Key");
 	
 	my $keyname = $e->keyname();
-	if ($keyname =~ m/Up|Down|KP_Next|KP_Prior|Return/) {
-		$lines = $self->line_get();
+	if ($keyname =~ m/Up|KP_Prior|Down|KP_Next|Return/ ) {
+			$lines = $self->line_get();
 	}
+		
 	
 	if ($lines) {
 		$label->text_set("Line: $lines Column: $column");
