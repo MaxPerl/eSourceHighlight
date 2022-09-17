@@ -82,7 +82,7 @@ sub init_entry {
 	my $en = Efl::Elm::Entry->add($box);
 	$en->scrollable_set(1);
 	$en->autosave_set(0);
-	$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
+	#$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
@@ -267,7 +267,7 @@ sub highlight_match_braces {
 				$cp2->char_next(); 
 				$cp2->format_append("</font_weight>");
 				
-				last;	
+				last;
 			}
 			elsif ($match_pos == -1 && $search_pos != -1) {
 				$depth = $depth + 1;
@@ -574,10 +574,11 @@ sub auto_indent {
 				};
 				
 				push @{$current_tab->undo_stack}, $auto_indent_undo;
+				
+				$new_cp = $cp1->pos_get();
 				}
 			}
-		}	
-		$new_cp = $cp1->pos_get();
+		}
 	}
 	
 	# For Debugging undo feature
@@ -722,7 +723,7 @@ sub rehighlight_lines {
 		#$self->is_rehighlight("yes");
 		#$entry->entry_insert($text);
 		$cp1->range_delete($cp2);
-		$cp1->text_markup_prepend($text)
+		$textblock->text_markup_prepend($cp1,$text)
 	}
 	
 	$cp1->free();

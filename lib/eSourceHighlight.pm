@@ -804,7 +804,7 @@ sub change_tab {
 	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
 	
 	my $self = $data->[0];
-	my $id = $data->[1];
+	my $id = $data->[1]; 
 	
 	my $tabs = $self->tabs();
 	my $entry = $self->entry;
