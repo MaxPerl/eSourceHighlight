@@ -438,8 +438,8 @@ sub fill_undo_stack {
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
-			my $insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content); decode_entities($insert_content_plain);
-			$insert_content_plain = Encode::decode("UTF-8",$insert_content);
+			my $insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content); #decode_entities($insert_content_plain);
+			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
 			#my $new_plain_length = $change->{insert}->{plain_length};
 			my $new_plain_length = length($insert_content_plain);
 			
@@ -509,6 +509,10 @@ sub fill_undo_stack {
 		
 		}
 	}
+	
+	# use Data::Dumper;
+	# print "NEW UNDO " . Dumper($new_undo) . "\n\n";
+	# print "UNDO STACK" . Dumper(@{$current_tab->undo_stack}) . "\n\n";
 	return $new_undo;
 }
 
@@ -542,7 +546,6 @@ sub auto_indent {
 		$cp1->line_char_first();
 		my $text = $cp1->paragraph_text_get();
 		 
-		print "TEXT $text\n";
 		if ($text) {				
 			
 			my $tabs = "";
