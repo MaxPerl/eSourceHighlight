@@ -86,7 +86,8 @@ sub init_entry {
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
-	
+	my $textblock = $en->textblock_get();
+	$textblock->legacy_newline_set(1);
 	
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
@@ -244,15 +245,39 @@ sub highlight_match_braces {
 			
 			if ($match_pos == -1 && $search_pos == -1) {
 				last if ($cp1->pos_get() == 0);
-				$cp1->paragraph_prev();$cp1->line_char_first();
-				$text = $cp1->paragraph_text_get();
+				$cp1->paragraph_prev();
+				$text = $cp1->paragraph_text_get();$cp1->line_char_first();
 				$text = Efl::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
 				$start = length($text);
 			}
+			elsif ($match_pos == -1 && $search_pos != -1) {
+				$depth = $depth + 1;
+				$start = $search_pos-1;
+				if ($start == -1) {
+					$cp1->paragraph_prev(); 
+					$text = $cp1->paragraph_text_get(); $cp1->line_char_first();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = length($text);
+				}
+			}
+			elsif ($search_pos == -1 && $match_pos != -1 && $depth != 0) {
+				$depth--;
+				$start = $match_pos-1;
+				# problem: If match_pos == -1, then the loop never stops
+				if ($start == -1) {
+					$cp1->paragraph_prev(); 
+					$text = $cp1->paragraph_text_get();$cp1->line_char_first();
+					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = Encode::decode("UTF-8",$text);
+					$start = length($text);
+				}
+			}
 			elsif ($match_pos >$search_pos && $depth == 0) {
 				my $format_cp1 = Efl::Evas::TextblockCursor->new($textblock);
 				my $format_cp2 = Efl::Evas::TextblockCursor->new($textblock);
+				my $found = $cp1->pos_get+$match_pos;
 				$cp1->pos_set($cp1->pos_get+$match_pos);
 				$cp1->copy($format_cp1);
 				push @{$self->match_braces_fmt}, $format_cp1; 
@@ -267,30 +292,8 @@ sub highlight_match_braces {
 				$cp2->char_next(); 
 				$cp2->format_append("</font_weight>");
 				
+				print "\n\nSEARCH $search_pos \t SEARCHPOS "  . $cp2->pos_get . " MATCH $match_pos \t MATCH POS $found\n\n";  
 				last;
-			}
-			elsif ($match_pos == -1 && $search_pos != -1) {
-				$depth = $depth + 1;
-				$start = $search_pos-1;
-				if ($start == -1) {
-					$cp1->paragraph_prev(); $cp1->line_char_first();
-					$text = $cp1->paragraph_text_get();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
-					$text = Encode::decode("UTF-8",$text);
-					$start = length($text);
-				}
-			}
-			elsif ($search_pos == -1 && $match_pos != -1) {
-				$depth--;
-				$start = $match_pos-1;
-				# problem: If match_pos == -1, then the loop never stops
-				if ($start == -1) {
-					$cp1->paragraph_prev(); $cp1->line_char_first();
-					$text = $cp1->paragraph_text_get();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
-					$text = Encode::decode("UTF-8",$text);
-					$start = length($text);
-				}
 			}
 			else {
 				$start = $match_pos > $search_pos ? $match_pos : $search_pos;
@@ -322,7 +325,7 @@ sub highlight_match_braces {
 		while (1) {
 			my $match_pos = index($text,$match_char,$start);
 			my $search_pos = index($text, $char,$start);
-			
+			print "MATCHPOS $match_pos SEARCHPOS $search_pos DEEPTH $depth\n\n";
 			if ($match_pos == -1 && $search_pos == -1) {
 				last if (!$cp1->paragraph_next);
 				$cp1->line_char_first();
@@ -374,9 +377,9 @@ sub highlight_match_braces {
 				}
 			}
 			else {
-				$start = $match_pos > $search_pos ? $match_pos : $search_pos;
+				$start = $match_pos < $search_pos ? $match_pos : $search_pos;
 				$start++;
-				$depth = $match_pos > $search_pos ? ($depth-1) : ($depth + 1);
+				$depth = $match_pos < $search_pos ? ($depth-1) : ($depth + 1);
 			}
 		}
 		
