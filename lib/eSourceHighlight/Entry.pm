@@ -234,7 +234,7 @@ sub highlight_match_braces {
 			$match_char = "[";
 		}
 		
-		$cp1->line_char_first();
+		$cp1->paragraph_char_first();
 		my $text = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
 		my $start = $cp2->pos_get() - $cp1->pos_get();
@@ -246,7 +246,7 @@ sub highlight_match_braces {
 			if ($match_pos == -1 && $search_pos == -1) {
 				last if ($cp1->pos_get() == 0);
 				$cp1->paragraph_prev();
-				$text = $cp1->paragraph_text_get();$cp1->line_char_first();
+				$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 				$text = Efl::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
 				$start = length($text);
@@ -256,7 +256,7 @@ sub highlight_match_braces {
 				$start = $search_pos-1;
 				if ($start == -1) {
 					$cp1->paragraph_prev(); 
-					$text = $cp1->paragraph_text_get(); $cp1->line_char_first();
+					$text = $cp1->paragraph_text_get(); $cp1->paragraph_char_first();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
 					$start = length($text);
@@ -268,7 +268,7 @@ sub highlight_match_braces {
 				# problem: If match_pos == -1, then the loop never stops
 				if ($start == -1) {
 					$cp1->paragraph_prev(); 
-					$text = $cp1->paragraph_text_get();$cp1->line_char_first();
+					$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
 					$start = length($text);
@@ -291,8 +291,7 @@ sub highlight_match_braces {
 				$cp2->format_append("<font_weight=bold>"); 
 				$cp2->char_next(); 
 				$cp2->format_append("</font_weight>");
-				
-				print "\n\nSEARCH $search_pos \t SEARCHPOS "  . $cp2->pos_get . " MATCH $match_pos \t MATCH POS $found\n\n";  
+				  
 				last;
 			}
 			else {
@@ -325,10 +324,9 @@ sub highlight_match_braces {
 		while (1) {
 			my $match_pos = index($text,$match_char,$start);
 			my $search_pos = index($text, $char,$start);
-			print "MATCHPOS $match_pos SEARCHPOS $search_pos DEEPTH $depth\n\n";
 			if ($match_pos == -1 && $search_pos == -1) {
 				last if (!$cp1->paragraph_next);
-				$cp1->line_char_first();
+				$cp1->paragraph_char_first();
 				$text = $cp1->paragraph_text_get();
 				$text = Efl::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
@@ -338,7 +336,7 @@ sub highlight_match_braces {
 				$depth = $depth + 1;
 				$start = $search_pos+1;
 				if ($start == (length($text)-1)) {
-					$cp1->paragraph_next(); $cp1->line_char_first();
+					$cp1->paragraph_next(); $cp1->paragraph_char_first();
 					$text = $cp1->paragraph_text_get();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
@@ -369,7 +367,7 @@ sub highlight_match_braces {
 				$start = $match_pos+1;
 				# problem: If match_pos == -1, then the loop never stops
 				if ($start == (length($text)-1)) {
-					$cp1->paragraph_next(); $cp1->line_char_first();
+					$cp1->paragraph_next(); $cp1->paragraph_char_first();
 					$text = $cp1->paragraph_text_get();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
@@ -546,7 +544,7 @@ sub auto_indent {
 	if ($content eq "<br/>") {		
 		#$cp1->pos_set($entry->cursor_pos_get() );
 		$cp1->paragraph_prev();
-		$cp1->line_char_first();
+		$cp1->paragraph_char_first();
 		my $text = $cp1->paragraph_text_get();
 		 
 		if ($text) {				
@@ -689,7 +687,7 @@ sub rehighlight_lines {
 			# the del event occured
 			$cp1->pos_set($undo->{start});
 			$cp1->paragraph_prev();
-			$cp1->line_char_first;
+			$cp1->paragraph_char_first;
 			
 			# .. to the line after the del event
 			$cp2->pos_set($undo->{end});
@@ -700,7 +698,7 @@ sub rehighlight_lines {
 				
 			$cp1->pos_set($undo->{pos});
 			$cp1->paragraph_prev();$cp1->paragraph_prev();
-			$cp1->line_char_first;
+			$cp1->paragraph_char_first;
 			
 			$cp2->pos_set($undo->{pos}+$undo->{plain_length});
 			$cp2->paragraph_next;$cp2->paragraph_next;
@@ -711,7 +709,7 @@ sub rehighlight_lines {
 		# Otherwiese we relight from the line before the actual cursor position...
 		$cp1->pos_set($entry->cursor_pos_get());
 		$cp1->paragraph_prev();
-		$cp1->line_char_first;
+		$cp1->paragraph_char_first;
 		
 		# .. to the line after the actual cursor position :-)
 		$cp2->pos_set($entry->cursor_pos_get());
@@ -837,7 +835,7 @@ sub column_get {
 	$cp1->pos_set($en->cursor_pos_get);
 	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
 	$cp2->pos_set($en->cursor_pos_get);
-	$cp2->line_char_first();
+	$cp2->paragraph_char_first();
 	
 	$column = $cp1->pos_get() - $cp2->pos_get();
 	
