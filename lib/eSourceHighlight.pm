@@ -20,6 +20,7 @@ use File::ShareDir 'dist_dir';
 use File::HomeDir;
 use File::Basename;
 use Cwd qw(abs_path getcwd);
+use HTML::Entities qw(decode_entities);
 
 use eSourceHighlight::Tab;
 use eSourceHighlight::Entry;
@@ -349,6 +350,8 @@ sub key_down {
 		
 		my $text = $entry->selection_get();
 		$text = Efl::Elm::Entry::markup_to_utf8($text);
+		$text = Encode::decode("UTF-8",$text);
+		decode_entities($text);
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
@@ -370,6 +373,8 @@ sub key_down {
 		
 		my $text = $entry->selection_get();
 		$text = Efl::Elm::Entry::markup_to_utf8($text);
+		$text = Encode::decode("UTF-8",$text);
+		decode_entities($text);
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
@@ -509,9 +514,14 @@ sub save {
 	if ($filename) {
 		# get the content of the buffer, without hidden characters
 		my $content = $en->entry_get();
-		$content = Efl::Elm::Entry::markup_to_utf8($content);
+		# not needed as entry_get returns the text in plain text format
+		#$content = Efl::Elm::Entry::markup_to_utf8($content);
+		# umlauts etc. must be converted
+		$content = Encode::decode("utf-8",$content);
+		decode_entities($content);
 		
-		open my $fh, ">:encoding(utf8)", $filename or die "Could not save file: $filename\n";
+		
+		open my $fh, ">:encoding(UTF-8)", $filename or die "Could not save file: $filename\n";
 		print $fh "$content";
 		close $fh;
 		

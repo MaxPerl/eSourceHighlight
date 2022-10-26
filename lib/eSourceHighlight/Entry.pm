@@ -237,6 +237,7 @@ sub highlight_match_braces {
 		$cp1->paragraph_char_first();
 		my $text = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
+		decode_entities($text);
 		my $start = $cp2->pos_get() - $cp1->pos_get();
 		
 		while (1) {
@@ -249,6 +250,9 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 				$text = Efl::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
+				decode_entities($text);
+				
+				
 				$start = length($text);
 			}
 			elsif ($match_pos == -1 && $search_pos != -1) {
@@ -258,7 +262,10 @@ sub highlight_match_braces {
 					$cp1->paragraph_prev(); 
 					$text = $cp1->paragraph_text_get(); $cp1->paragraph_char_first();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
-					$text = Encode::decode("UTF-8",$text);
+					decode_entities($text);
+					
+					#$text = Encode::decode("UTF-8",$text);
+					
 					$start = length($text);
 				}
 			}
@@ -271,6 +278,9 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
+					decode_entities($text);
+					
+					
 					$start = length($text);
 				}
 			}
@@ -318,6 +328,7 @@ sub highlight_match_braces {
 		$cp1->line_char_last();  
 		my $text = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
+		decode_entities($text);
 		my $found = undef; my $start = 0;
 		$cp1->pos_set($cp2->pos_get());
 		
@@ -330,6 +341,8 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();
 				$text = Efl::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
+				decode_entities($text);
+				
 				$start = 0;
 			}
 			elsif ($match_pos == -1 && $search_pos != -1) {
@@ -340,6 +353,8 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
+					decode_entities($text);
+					
 					$start = 0;
 				}
 			}
@@ -371,6 +386,8 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = Efl::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
+					decode_entities($text);
+					
 					$start = 0;
 				}
 			}
@@ -439,8 +456,11 @@ sub fill_undo_stack {
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
-			my $insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content); #decode_entities($insert_content_plain);
+			my $insert_content_plain = $insert_content;
+			$insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content);
 			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
+			decode_entities($insert_content_plain);
+			 
 			#my $new_plain_length = $change->{insert}->{plain_length};
 			my $new_plain_length = length($insert_content_plain);
 			
@@ -608,6 +628,8 @@ sub highlight_str {
 	# $entry->selection_get gets the text in markup format!!!
 	# Therefore convert it to utf8
 	$text = Efl::Elm::Entry::markup_to_utf8($text);
+	$text = Encode::decode("UTF-8",$text);
+	decode_entities($text);
 	
 	
 	# Check whether there is a $sh_lang for the document
@@ -749,7 +771,9 @@ sub clear_highlight {
 sub to_utf8 {
 	my ($self,$text) = @_;
 	
-	$text = Efl::Elm::Entry::markup_to_utf8($text);
+	$text = Encode::decode("UTF-8",$text);
+	decode_entities($text);
+	#$text = Efl::Elm::Entry::markup_to_utf8($text);
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	return $text;
@@ -783,7 +807,7 @@ sub undo {
 		
 			
 		#$entry->select_region_set($undo->{pos} - $undo->{plain_length}, $undo->{pos});
-		my $text = $undo->{content}; $text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text);
+		my $text = $undo->{content}; #$text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
 		$entry->select_region_set($undo->{pos}, $undo->{pos} + $undo->{plain_length});
 		$entry->entry_insert("");
 		$entry->select_none();
@@ -814,7 +838,7 @@ sub redo {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes") is not needed 
-		my $text = $redo->{content}; $text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text); 
+		my $text = $redo->{content}; #$text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
 		#$entry->cursor_pos_set($redo->{pos}-length($text));
 		$entry->cursor_pos_set($redo->{pos});
 		$entry->entry_insert($redo->{content});
