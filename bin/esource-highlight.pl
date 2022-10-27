@@ -4,8 +4,8 @@ use strict;
 use warnings;
 use utf8;
 
-use Efl;
-use Efl::Evas;
+use pEFL;
+use pEFL::Evas;
 
 use eSourceHighlight;
 

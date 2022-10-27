@@ -7,13 +7,13 @@ use strict;
 use warnings;
 use utf8;
 
-use Efl;
-use Efl::Elm;
-use Efl::Evas;
-use Efl::Ecore;
-use Efl::Ecore::EventHandler;
-use Efl::Ecore::Event::Key;
-use Efl::Elm::Config;
+use pEFL;
+use pEFL::Elm;
+use pEFL::Evas;
+use pEFL::Ecore;
+use pEFL::Ecore::EventHandler;
+use pEFL::Ecore::Event::Key;
+use pEFL::Elm::Config;
 
 use File::ShareDir 'dist_dir';
 
@@ -82,20 +82,20 @@ sub new {
 sub init_ui {
 	my ($self) = @_;
 	
-	Efl::Elm::init($#ARGV, \@ARGV);
-	Efl::Elm::Config::scroll_accel_factor_set(1);
-	Efl::Elm::policy_set(ELM_POLICY_QUIT, ELM_POLICY_QUIT_LAST_WINDOW_CLOSED);
-	my $win = Efl::Elm::Win->util_standard_add("eSourceHighlight", "eSourceHighlight");
+	pEFL::Elm::init($#ARGV, \@ARGV);
+	pEFL::Elm::Config::scroll_accel_factor_set(1);
+	pEFL::Elm::policy_set(ELM_POLICY_QUIT, ELM_POLICY_QUIT_LAST_WINDOW_CLOSED);
+	my $win = pEFL::Elm::Win->util_standard_add("eSourceHighlight", "eSourceHighlight");
 	$win->smart_callback_add("delete,request" => \&on_exit, $self);
 	$self->elm_mainwindow($win);
 	
 	# Create new icon
-	my $ic = Efl::Elm::Icon->add($win);
+	my $ic = pEFL::Elm::Icon->add($win);
 	$ic->file_set($self->share_dir . "/icon1.svg", undef );
 	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
 	$win->icon_object_set($ic);
 		
-	my $box = Efl::Elm::Box->add($win);
+	my $box = pEFL::Elm::Box->add($win);
 	$box->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
 	$box->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$win->resize_object_add($box);
@@ -104,7 +104,7 @@ sub init_ui {
 	 
 	init_tabsbar($self,$box);
 	
-	my $searchbar = Efl::Elm::Box->new($box);
+	my $searchbar = pEFL::Elm::Box->new($box);
 	$searchbar->horizontal_set(1);
 	$searchbar->size_hint_weight_set(EVAS_HINT_EXPAND,0);
 	$searchbar->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
@@ -138,13 +138,13 @@ sub init_ui {
 	$win->resize(900,600);
 	$win->show();
 
-	Efl::Elm::run();
-	Efl::Elm::shutdown();
+	pEFL::Elm::run();
+	pEFL::Elm::shutdown();
 }
 
 sub init_tabsbar {
 	my ($self, $box) = @_;
-	my $tabsbar = Efl::Elm::Toolbar->add($box);
+	my $tabsbar = pEFL::Elm::Toolbar->add($box);
 	
 	$tabsbar->homogeneous_set(1);
 	
@@ -163,7 +163,7 @@ sub init_tabsbar {
 	# unfortunately this does not work (because items can not have own evas (smart) events
 	# therefore the solution here is only to show the menu when a left click occurs at the
 	# selected tab item (see show_tab_menu)
-	my $menu = Efl::Elm::Menu->add($tabsbar);
+	my $menu = pEFL::Elm::Menu->add($tabsbar);
 	$menu->item_add(undef,undef,"Close tab",\&_close_tab_cb,$self);
 	$tabsbar->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN,\&show_tab_menu,$menu);
 	$tabsbar->smart_callback_add("selected",\&_no_change_tab,$self);
@@ -208,22 +208,22 @@ sub add_menu {
 	$menu->item_add($edit_it,"edit-find","Find / Replace",\&toggle_find,$self);
 	
 	my $doc_it = $menu->item_add(undef,undef,"Document",undef, undef);
-	my $linewrap_check = Efl::Elm::Check->add($menu); $linewrap_check->state_set(1); 
+	my $linewrap_check = pEFL::Elm::Check->add($menu); $linewrap_check->state_set(1); 
 	my $linewrap_it = $menu->item_add($doc_it,"document-new","Line wrap",\&toggle_linewrap,$self);
 	$linewrap_it->content_set($linewrap_check);
 	$self->elm_linewrap_check($linewrap_check);
 
-	my $autoident_check = Efl::Elm::Check->add($menu); $autoident_check->state_set(1); 
+	my $autoident_check = pEFL::Elm::Check->add($menu); $autoident_check->state_set(1); 
 	my $autoident_it = $menu->item_add($doc_it,"document-new","Autoident",\&toggle_autoident,$self);
 	$autoident_it->content_set($autoident_check);
 	$self->elm_autoident_check($autoident_check);
 	
-	my $match_braces_check = Efl::Elm::Check->add($menu); $match_braces_check->state_set(1); 
+	my $match_braces_check = pEFL::Elm::Check->add($menu); $match_braces_check->state_set(1); 
 	my $match_braces_it = $menu->item_add($doc_it,"document-new","Highlight match braces",\&toggle_match_braces,$self);
 	$match_braces_it->content_set($match_braces_check);
 	$self->elm_match_braces_check($match_braces_check);
 	
-	my $src_highlight_check = Efl::Elm::Check->add($menu); $src_highlight_check->state_set(1); 
+	my $src_highlight_check = pEFL::Elm::Check->add($menu); $src_highlight_check->state_set(1); 
 	my $src_highlight_it = $menu->item_add($doc_it,"document-new","Source highlight",\&toggle_src_highlight,$self);
 	$src_highlight_it->content_set($src_highlight_check);
 	$self->elm_src_highlight_check($src_highlight_check);
@@ -231,7 +231,7 @@ sub add_menu {
 	my $help_it = $menu->item_add(undef,undef,"Help",undef, undef);
 	my $about_it = $menu->item_add($help_it,"help-about","About",\&about,$self);
 	# Create new icon
-	my $ic = Efl::Elm::Icon->add($win);
+	my $ic = pEFL::Elm::Icon->add($win);
 	$ic->file_set($self->share_dir . "/icon1.svg", undef );
 	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
 	$about_it->content_set($ic);
@@ -239,27 +239,27 @@ sub add_menu {
 	my $src_format_it = $menu->item_add($doc_it,undef,"Set source format",\&set_src_format,$self);
 	
 	# Keyboard shortcuts
-	Efl::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
+	pEFL::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
 }
 
 sub set_src_format {
 	my ($self) = (@_);
 	
-	my $src_win = Efl::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
+	my $src_win = pEFL::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
 	$src_win->focus_highlight_enabled_set(1);
 	$src_win->autodel_set(1);
 	
-	my $bx = Efl::Elm::Box->add($src_win);
+	my $bx = pEFL::Elm::Box->add($src_win);
 	$bx->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
 	$bx->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$bx->show();
 	
-	my $list = Efl::Elm::Genlist->new($bx);
+	my $list = pEFL::Elm::Genlist->new($bx);
 	$list->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
 	$list->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$list->show();
 	
-	my $itc = Efl::Elm::GenlistItemClass->new();
+	my $itc = pEFL::Elm::GenlistItemClass->new();
 	$itc->item_style("default");
 	$itc->text_get(\&src_genlist_text_get);
 	
@@ -273,7 +273,7 @@ sub set_src_format {
 		$list->item_append($itc,$lang, undef, ELM_GENLIST_ITEM_NONE(), \&_select_src_highlight, $self);	
 	}
 	
-	my $btn = Efl::Elm::Button->add($bx);
+	my $btn = pEFL::Elm::Button->add($bx);
 	$btn->size_hint_weight_set(EVAS_HINT_EXPAND,0);
 	$btn->size_hint_align_set(EVAS_HINT_FILL,0);
 	$btn->text_set("Cancel");
@@ -293,7 +293,7 @@ sub set_src_format {
 
 sub _select_src_highlight {
 	my ($self, $obj, $item) = @_;
-	$item = Efl::ev_info2obj($item,"ElmGenlistItemPtr");
+	$item = pEFL::ev_info2obj($item,"ElmGenlistItemPtr");
 	
 	my $src_win = $obj->top_widget_get;
 	
@@ -315,7 +315,7 @@ sub src_genlist_text_get {
 
 sub key_down {
 	my ($self, $type, $event) = @_;
-	my $e = Efl::ev_info2obj($event, "Efl::Ecore::Event::Key");
+	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
 	my $keyname = $e->keyname();
 	my $modifiers = $e->modifiers();
 	
@@ -349,7 +349,7 @@ sub key_down {
 		my $entry = $self->entry->elm_entry();
 		
 		my $text = $entry->selection_get();
-		$text = Efl::Elm::Entry::markup_to_utf8($text);
+		$text = pEFL::Elm::Entry::markup_to_utf8($text);
 		$text = Encode::decode("UTF-8",$text);
 		decode_entities($text);
 		
@@ -372,7 +372,7 @@ sub key_down {
 		my $entry = $self->entry->elm_entry();
 		
 		my $text = $entry->selection_get();
-		$text = Efl::Elm::Entry::markup_to_utf8($text);
+		$text = pEFL::Elm::Entry::markup_to_utf8($text);
 		$text = Encode::decode("UTF-8",$text);
 		decode_entities($text);
 		
@@ -397,15 +397,15 @@ sub on_exit {
 	my @unsaved = grep $_->changed() > 0, @{$self->tabs()};
 	
 	if (@unsaved) {
-		my $popup = Efl::Elm::Popup->add($self->elm_mainwindow());
+		my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
 		
 		$popup->part_text_set("default","Warning: There are some unsaved files. Close anyway?");
 		
-		my $btn1 = Efl::Elm::Button->add($popup);
+		my $btn1 = pEFL::Elm::Button->add($popup);
 		$btn1->text_set("Okay");
-		$btn1->smart_callback_add("clicked" => sub {Efl::Elm::exit});
+		$btn1->smart_callback_add("clicked" => sub {pEFL::Elm::exit});
 		
-		my $btn2 = Efl::Elm::Button->add($popup);
+		my $btn2 = pEFL::Elm::Button->add($popup);
 		$btn2->text_set("Cancel");
 		$btn2->smart_callback_add("clicked" => sub {$popup->del});
 		
@@ -415,7 +415,7 @@ sub on_exit {
 		$popup->show();
 	}
 	else {
-		Efl::Elm::exit();
+		pEFL::Elm::exit();
 	}
 }
 
@@ -430,17 +430,17 @@ sub _new_tab_cb {
 sub file_cb {
 	my ($self) = @_;
 	
-	my $fs_win = Efl::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
+	my $fs_win = pEFL::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
 	$fs_win->focus_highlight_enabled_set(1);
 	$fs_win->autodel_set(1);
 	
-	my $vbox = Efl::Elm::Box->add($fs_win);
+	my $vbox = pEFL::Elm::Box->add($fs_win);
 	$vbox->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$vbox->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$vbox->show();
 	$fs_win->resize_object_add($vbox);
 	
-	my $fs = Efl::Elm::Fileselector->add($fs_win);
+	my $fs = pEFL::Elm::Fileselector->add($fs_win);
 	
 	my $path; 
 	if ($self->current_tab->filename) { 
@@ -467,11 +467,11 @@ sub file_cb {
 sub about {
 	my ($self) = @_;
 	
-	my $popup = Efl::Elm::Popup->add($self->elm_mainwindow());
-	$popup->text_set("<b>eSourceHighlight</b><br/><br/>A simple frontend for the GNU source-highlight library written in Perl/Efl");
+	my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
+	$popup->text_set("<b>eSourceHighlight</b><br/><br/>A simple frontend for the GNU source-highlight library written in Perl/pEFL");
 	
 	# popup buttons
-	my $btn = Efl::Elm::Button->add($popup);
+	my $btn = pEFL::Elm::Button->add($popup);
 	$btn->text_set("Close");
 	$popup->part_content_set("button1",$btn);
 	$btn->smart_callback_add("clicked",sub {$_[0]->del},$popup);
@@ -514,8 +514,8 @@ sub save {
 	if ($filename) {
 		# get the content of the buffer, without hidden characters
 		my $content = $en->entry_get();
-		# not needed as entry_get returns the text in plain text format
-		#$content = Efl::Elm::Entry::markup_to_utf8($content);
+		$content = pEFL::Elm::Entry::markup_to_utf8($content);
+		
 		# umlauts etc. must be converted
 		$content = Encode::decode("utf-8",$content);
 		decode_entities($content);
@@ -544,7 +544,7 @@ sub _fs_invalid {
 sub _fs_save_done {
 	my ($self, $obj, $ev_info) = @_;
 	
-	my $selected = Efl::ev_info2s($ev_info);
+	my $selected = pEFL::ev_info2s($ev_info);
 	
 	my $fs_win = $obj->top_widget_get;
 	$fs_win->del();
@@ -571,7 +571,7 @@ sub open_file {
 			$content = $content . $line;
 		}
 		
-		$content = Efl::Elm::Entry::utf8_to_markup($content);
+		$content = pEFL::Elm::Entry::utf8_to_markup($content);
 		
 		# Change the filename variable and/or open a new tab
 		my ($name,$dirs,$suffix) = fileparse($selected); 
@@ -622,7 +622,7 @@ sub _fs_open_done {
 	
 	return unless($ev_info);
 	
-	my $selected = Efl::ev_info2s($ev_info);
+	my $selected = pEFL::ev_info2s($ev_info);
 	
 	$self->open_file($selected);
 	
@@ -635,15 +635,15 @@ sub _close_tab_cb {
 	my $current_tab = $self->current_tab();
 	
 	if ($current_tab->changed() > 0) {
-		my $popup = Efl::Elm::Popup->add($self->elm_mainwindow());
+		my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
 		
 		$popup->part_text_set("default","Warning: Tab contains unsaved content. Close anyway?");
 		
-		my $btn1 = Efl::Elm::Button->add($popup);
+		my $btn1 = pEFL::Elm::Button->add($popup);
 		$btn1->text_set("Okay");
 		$btn1->smart_callback_add("clicked" => sub {$current_tab->changed(0); $popup->del(); $self->_close_tab_cb});
 		
-		my $btn2 = Efl::Elm::Button->add($popup);
+		my $btn2 = pEFL::Elm::Button->add($popup);
 		$btn2->text_set("Cancel");
 		$btn2->smart_callback_add("clicked" => sub {$popup->del});
 		
@@ -660,7 +660,7 @@ sub _close_tab_cb {
 	}
 	
 	if ($#tabs < 0 ) {
-		Efl::Elm::exit();
+		pEFL::Elm::exit();
 	}
 }
 
@@ -786,7 +786,7 @@ sub push_tab {
 
 sub show_tab_menu {
 	my ($menu, $evas, $obj, $evinfo) = @_;
-	my $ev = Efl::ev_info2obj($evinfo, "Efl::Evas::Event::MouseDown");
+	my $ev = pEFL::ev_info2obj($evinfo, "pEFL::Evas::Event::MouseDown");
 	
 	my $selected = $obj->selected_item_get();
 	my $track = $selected->track();
@@ -803,7 +803,7 @@ sub show_tab_menu {
 
 sub _no_change_tab {
 	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");		
+	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr");		
 	unless ($obj->selected_item_get()) {
 		$tabitem->selected_set(1);
 	}
@@ -811,7 +811,7 @@ sub _no_change_tab {
 
 sub change_tab {
 	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = Efl::ev_info2obj($ev_info, "ElmToolbarItemPtr");
+	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr");
 	
 	my $self = $data->[0];
 	my $id = $data->[1]; 
@@ -906,7 +906,7 @@ sub toggle_src_highlight {
 sub add_statusbar {
 	my ($self,$vbox) = @_;
 	
-	my $hbox = Efl::Elm::Box->add($vbox);
+	my $hbox = pEFL::Elm::Box->add($vbox);
 	$hbox->padding_set(25,25);
 	$hbox->horizontal_set(1);
 	$hbox->size_hint_weight_set(EVAS_HINT_EXPAND,0);
@@ -914,31 +914,31 @@ sub add_statusbar {
 	$vbox->pack_end($hbox);
 	$hbox->show();
 	
-	my $separator = Efl::Elm::Separator->add($hbox);
+	my $separator = pEFL::Elm::Separator->add($hbox);
 	$separator->horizontal_set(1);
 	$separator->size_hint_weight_set(EVAS_HINT_EXPAND,0);
 	$separator->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$hbox->pack_end($separator);
 	$separator->show();
 	
-	my $doctype_label = Efl::Elm::Label->add($hbox);
+	my $doctype_label = pEFL::Elm::Label->add($hbox);
 	$doctype_label->text_set("Document Type: Unknown");
 	$doctype_label->show(); 
 	$hbox->pack_end($doctype_label);
 	$self->elm_doctype_label($doctype_label);
 	
-	my $separator2 = Efl::Elm::Separator->add($hbox);
+	my $separator2 = pEFL::Elm::Separator->add($hbox);
 	$separator2->horizontal_set(1);
 	$hbox->pack_end($separator2);
 	$separator2->show();
 	
-	my $line_column_label = Efl::Elm::Label->add($hbox);
+	my $line_column_label = pEFL::Elm::Label->add($hbox);
 	$line_column_label->text_set("Line: 1 Column: 0");
 	$line_column_label->show(); 
 	$hbox->pack_end($line_column_label);
 	$self->elm_linecolumn_label($line_column_label);
 	
-	my $separator3 = Efl::Elm::Separator->add($hbox);
+	my $separator3 = pEFL::Elm::Separator->add($hbox);
 	$separator3->horizontal_set(1);
 	$hbox->pack_end($separator3);
 	$separator3->show();

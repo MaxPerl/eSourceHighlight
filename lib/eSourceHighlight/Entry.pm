@@ -7,11 +7,11 @@ use utf8;
 
 require Exporter;
 
-use Efl::Ecore;
-use Efl::Ecore::EventHandler;
-use Efl::Ecore::Event::Key;
-use Efl::Elm;
-use Efl::Evas;
+use pEFL::Ecore;
+use pEFL::Ecore::EventHandler;
+use pEFL::Ecore::Event::Key;
+use pEFL::Elm;
+use pEFL::Evas;
 
 use Syntax::SourceHighlight;
 use HTML::Entities;
@@ -79,7 +79,7 @@ sub init_entry {
 	
 	my $lm = Syntax::SourceHighlight::LangMap->new(); $self->sh_langmap($lm);
 	
-	my $en = Efl::Elm::Entry->add($box);
+	my $en = pEFL::Elm::Entry->add($box);
 	$en->scrollable_set(1);
 	$en->autosave_set(0);
 	#$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
@@ -92,9 +92,10 @@ sub init_entry {
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
+	$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
-	$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
+	
 	
 	
 	$box->pack_end($en);
@@ -102,6 +103,13 @@ sub init_entry {
 	
 	$self->app->entry($self);
 	$self->elm_entry($en);
+}
+
+sub paste_selection {
+	my $self = shift;
+	my $en = $self->elm_entry();
+	my $textblock = $en->textblock_get();
+	_remove_match_braces($self,$textblock);
 }
 
 sub on_key_down {
@@ -141,7 +149,7 @@ sub changed {
 	#print "IS REHIGHLIGHT " . $self->is_rehighlight() . "\n";
 	#print "REHIGHLIGHT " . $self->rehighlight() . "\n";
 	
-	my $change_info = Efl::ev_info2obj($ev,"Efl::Elm::EntryChangeInfo");
+	my $change_info = pEFL::ev_info2obj($ev,"pEFL::Elm::EntryChangeInfo");
 	
 	my $change = $change_info->change();
 	
@@ -192,16 +200,13 @@ sub changed {
 	$entry->cursor_pos_set($cpos);
 }
 
-
-sub highlight_match_braces {
-	my ($self) = @_;
-	my $en = $self->elm_entry();
+sub _remove_match_braces {
+	my ($self,$textblock) = @_;
 	
-	my $textblock = $en->textblock_get();
 	if (scalar( @{ $self->match_braces_fmt}) >= 1) {
 	
 		foreach my $fcp (@{$self->match_braces_fmt}) {
-			my $fcp2 = Efl::Evas::TextblockCursor->new($textblock);
+			my $fcp2 = pEFL::Evas::TextblockCursor->new($textblock);
 			$fcp2->pos_set($fcp->pos_get()); $fcp2->char_next();$fcp2->char_next();
 			my $text = $fcp->range_text_get($fcp2, EVAS_TEXTBLOCK_TEXT_MARKUP); 
 			my @formats = $fcp->range_formats_get_pv($fcp2);
@@ -213,9 +218,16 @@ sub highlight_match_braces {
 		}
 		$self->match_braces_fmt([]);
 	}
+}
+sub highlight_match_braces {
+	my ($self) = @_;
+	my $en = $self->elm_entry();
 	
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
-	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
+	my $textblock = $en->textblock_get();
+	_remove_match_braces($self,$textblock);
+	
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->pos_set($en->cursor_pos_get);
 	$cp2->pos_set($en->cursor_pos_get); $cp2->char_next();
 	my $char = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN) || "";
@@ -248,7 +260,7 @@ sub highlight_match_braces {
 				last if ($cp1->pos_get() == 0);
 				$cp1->paragraph_prev();
 				$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
-				$text = Efl::Elm::Entry::markup_to_utf8($text);
+				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
 				decode_entities($text);
 				
@@ -261,7 +273,7 @@ sub highlight_match_braces {
 				if ($start == -1) {
 					$cp1->paragraph_prev(); 
 					$text = $cp1->paragraph_text_get(); $cp1->paragraph_char_first();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					decode_entities($text);
 					
 					#$text = Encode::decode("UTF-8",$text);
@@ -276,7 +288,7 @@ sub highlight_match_braces {
 				if ($start == -1) {
 					$cp1->paragraph_prev(); 
 					$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
 					decode_entities($text);
 					
@@ -285,8 +297,8 @@ sub highlight_match_braces {
 				}
 			}
 			elsif ($match_pos >$search_pos && $depth == 0) {
-				my $format_cp1 = Efl::Evas::TextblockCursor->new($textblock);
-				my $format_cp2 = Efl::Evas::TextblockCursor->new($textblock);
+				my $format_cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+				my $format_cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 				my $found = $cp1->pos_get+$match_pos;
 				$cp1->pos_set($cp1->pos_get+$match_pos);
 				$cp1->copy($format_cp1);
@@ -339,7 +351,7 @@ sub highlight_match_braces {
 				last if (!$cp1->paragraph_next);
 				$cp1->paragraph_char_first();
 				$text = $cp1->paragraph_text_get();
-				$text = Efl::Elm::Entry::markup_to_utf8($text);
+				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
 				decode_entities($text);
 				
@@ -351,7 +363,7 @@ sub highlight_match_braces {
 				if ($start == (length($text)-1)) {
 					$cp1->paragraph_next(); $cp1->paragraph_char_first();
 					$text = $cp1->paragraph_text_get();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
 					decode_entities($text);
 					
@@ -359,8 +371,8 @@ sub highlight_match_braces {
 				}
 			}
 			elsif (($match_pos < $search_pos && $depth == 0) || ($search_pos == -1 && $match_pos != -1 && $depth == 0) ) {
-				my $format_cp1 = Efl::Evas::TextblockCursor->new($textblock);
-				my $format_cp2 = Efl::Evas::TextblockCursor->new($textblock);
+				my $format_cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+				my $format_cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 				$cp1->pos_set($cp1->pos_get+$match_pos);
 				$cp1->copy($format_cp1);
 				push @{$self->match_braces_fmt}, $format_cp1; 
@@ -384,7 +396,7 @@ sub highlight_match_braces {
 				if ($start == (length($text)-1)) {
 					$cp1->paragraph_next(); $cp1->paragraph_char_first();
 					$text = $cp1->paragraph_text_get();
-					$text = Efl::Elm::Entry::markup_to_utf8($text);
+					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
 					decode_entities($text);
 					
@@ -457,7 +469,7 @@ sub fill_undo_stack {
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
 			my $insert_content_plain = $insert_content;
-			$insert_content_plain = Efl::Elm::Entry::markup_to_utf8($insert_content);
+			$insert_content_plain = pEFL::Elm::Entry::markup_to_utf8($insert_content);
 			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
 			decode_entities($insert_content_plain);
 			 
@@ -553,7 +565,7 @@ sub auto_indent {
 	my $content = "";
 	
 	my $textblock = $entry->textblock_get();
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->pos_set($cursor_pos);
 	#my $cp1= $textblock->cursor_get(); 
 	
@@ -627,7 +639,7 @@ sub highlight_str {
 	
 	# $entry->selection_get gets the text in markup format!!!
 	# Therefore convert it to utf8
-	$text = Efl::Elm::Entry::markup_to_utf8($text);
+	$text = pEFL::Elm::Entry::markup_to_utf8($text);
 	$text = Encode::decode("UTF-8",$text);
 	decode_entities($text);
 	
@@ -701,8 +713,8 @@ sub rehighlight_lines {
 	$self->rehighlight("no");
 	
 	my $textblock = $entry->textblock_get();
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
-	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	if (defined($undo)) {
 		if ($undo->{del}) {
 			# if there is a del event then we relight from the line before 
@@ -773,7 +785,7 @@ sub to_utf8 {
 	
 	$text = Encode::decode("UTF-8",$text);
 	decode_entities($text);
-	#$text = Efl::Elm::Entry::markup_to_utf8($text);
+	#$text = pEFL::Elm::Entry::markup_to_utf8($text);
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	return $text;
@@ -807,7 +819,7 @@ sub undo {
 		
 			
 		#$entry->select_region_set($undo->{pos} - $undo->{plain_length}, $undo->{pos});
-		my $text = $undo->{content}; #$text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
+		my $text = $undo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
 		$entry->select_region_set($undo->{pos}, $undo->{pos} + $undo->{plain_length});
 		$entry->entry_insert("");
 		$entry->select_none();
@@ -838,7 +850,7 @@ sub redo {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes") is not needed 
-		my $text = $redo->{content}; #$text = Efl::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
+		my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
 		#$entry->cursor_pos_set($redo->{pos}-length($text));
 		$entry->cursor_pos_set($redo->{pos});
 		$entry->entry_insert($redo->{content});
@@ -855,9 +867,9 @@ sub column_get {
 	my $en = $self->elm_entry();
 	
 	my $textblock = $en->textblock_get();
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->pos_set($en->cursor_pos_get);
-	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp2->pos_set($en->cursor_pos_get);
 	$cp2->paragraph_char_first();
 	
@@ -876,9 +888,9 @@ sub line_get {
 	my $lines;
 	
 	my $textblock = $en->textblock_get();
-	my $cp1 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->pos_set($en->cursor_pos_get);
-	my $cp2 = Efl::Evas::TextblockCursor->new($textblock);
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp2->pos_set(0);
 	my $text_before = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_MARKUP);
 		
@@ -902,7 +914,7 @@ sub line_column_get {
 	
 	$column = $self->column_get();
 	
-	my $e = Efl::ev_info2obj($event, "Efl::Ecore::Event::Key");
+	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
 	
 	my $keyname = $e->keyname();
 	if ($keyname =~ m/Up|KP_Prior|Down|KP_Next|Return/ ) {
@@ -933,7 +945,7 @@ sub line_column_get_mouse {
 	
 	$column = $self->column_get();
 	
-	my $e = Efl::ev_info2obj( $event, "Efl::Evas::Event::MouseDown");
+	my $e = pEFL::ev_info2obj( $event, "pEFL::Evas::Event::MouseDown");
 	
 	my $button = $e->button();
 	if ($button == 1) {

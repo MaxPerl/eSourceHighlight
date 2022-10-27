@@ -7,8 +7,8 @@ use utf8;
 
 require Exporter;
 
-use Efl::Elm;
-use Efl::Evas;
+use pEFL::Elm;
+use pEFL::Evas;
 use Encode;
 
 use eSourceHighlight::Entry;
@@ -60,11 +60,11 @@ sub new {
 sub init_search {
 	my ($self, $app,$vbox) = @_;
 	my $parent = $self->app->elm_mainwindow();
-	my $big_box = Efl::Elm::Box->add($self->app->elm_mainwindow());
+	my $big_box = pEFL::Elm::Box->add($self->app->elm_mainwindow());
 	$big_box->size_hint_align_set(EVAS_HINT_FILL, 0.5);
 	$big_box->size_hint_weight_set(EVAS_HINT_EXPAND,0.0);
 	
-	my $box = Efl::Elm::Box->add($parent);
+	my $box = pEFL::Elm::Box->add($parent);
 	$box->homogeneous_set(0);
 	$box->padding_set(15,0);
 	$box->horizontal_set(1);
@@ -73,20 +73,20 @@ sub init_search {
 	$big_box->pack_end($box);
 	$box->show();
 	
-	my $table = Efl::Elm::Table->add($parent);
+	my $table = pEFL::Elm::Table->add($parent);
 	$table->size_hint_align_set(EVAS_HINT_FILL, EVAS_HINT_FILL);
 	$table->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$table->padding_set(5,0);
 	
 	
-	my $lbl = Efl::Elm::Label->add($table);
+	my $lbl = pEFL::Elm::Label->add($table);
 	$lbl->text_set("Search term");
 	$lbl->size_hint_align_set(EVAS_HINT_FILL, 0.5);
 	$lbl->size_hint_weight_set(0.0, 0.0);
 	$table->pack($lbl, 0, 0, 1, 1);
 	$lbl->show();
    	
-	my $entry = Efl::Elm::Entry->add($table);
+	my $entry = pEFL::Elm::Entry->add($table);
 	$entry->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
 	$entry->scrollable_set(1);
 	$entry->single_line_set(1);
@@ -102,14 +102,14 @@ sub init_search {
    	
    	#$entry->event_callback_add(EVAS_CALLBACK_KEY_UP, \&search_entry_key_down, $self);
    	
-   	my $replace_lbl = Efl::Elm::Label->add($table);
+   	my $replace_lbl = pEFL::Elm::Label->add($table);
    	$replace_lbl->text_set("Replace term");
    	$replace_lbl->size_hint_align_set(EVAS_HINT_FILL, 0.5);
    	$replace_lbl->size_hint_weight_set(0.0, 0.0);
    	$table->pack($replace_lbl, 0, 1, 1, 1);
    	$replace_lbl->show();
    	
-   	my $replace_entry = Efl::Elm::Entry->add($table);
+   	my $replace_entry = pEFL::Elm::Entry->add($table);
    	$replace_entry->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
    	$replace_entry->scrollable_set(1);
    	$replace_entry->single_line_set(1);
@@ -124,7 +124,7 @@ sub init_search {
 	$table->show();
 	$big_box->pack_end($table);
    	
-	my $box2 = Efl::Elm::Box->add($parent);
+	my $box2 = pEFL::Elm::Box->add($parent);
 	$box2->homogeneous_set(0);
 	$box2->padding_set(15,0);
 	$box2->horizontal_set(1);
@@ -133,11 +133,11 @@ sub init_search {
 	$box2->show();
 	$big_box->pack_end($box2);
 	
-	my $wrapped_text = Efl::Elm::Label->add($parent);
+	my $wrapped_text = pEFL::Elm::Label->add($parent);
 	$wrapped_text->text_set("Reached end of file, starting from beginning");
 	$box2->pack_end($wrapped_text);
 	
-	my $btn = Efl::Elm::Button->add($parent);
+	my $btn = pEFL::Elm::Button->add($parent);
 	$btn->text_set("Search");
 	$btn->size_hint_align_set(1.0, 0.0);
 	$btn->size_hint_weight_set(0.0, 0.0);  
@@ -145,7 +145,7 @@ sub init_search {
 	$box2->pack_end($btn);
 	$btn->smart_callback_add("clicked", \&search_clicked, $self);
 	
-	my $replace_btn = Efl::Elm::Button->add($parent);
+	my $replace_btn = pEFL::Elm::Button->add($parent);
 	$replace_btn->text_set("Replace");
 	$replace_btn->size_hint_align_set(1.0, 0.0);
 	$replace_btn->size_hint_weight_set(0.0, 0.0);
@@ -153,7 +153,7 @@ sub init_search {
 	$box2->pack_end($replace_btn);
 	$replace_btn->smart_callback_add("clicked", \&replace_clicked, $self);
    	
-	my $cancel_btn = Efl::Elm::Button->add($parent);
+	my $cancel_btn = pEFL::Elm::Button->add($parent);
 	$cancel_btn->text_set("Cancel");
 	$cancel_btn->size_hint_align_set(1.0, 0.0);
 	$cancel_btn->size_hint_weight_set(0.0, 0.0);
@@ -182,7 +182,7 @@ sub do_search {
 	
 	my $en = $entry->elm_entry();
 	my $text_markup = $search->elm_entry()->text_get();
-	my $text = Efl::Elm::Entry::markup_to_utf8($text_markup);
+	my $text = pEFL::Elm::Entry::markup_to_utf8($text_markup);
 	
 	return unless ($text);
 	# Decode that length works properly on the Elementary Utf8 Format
@@ -194,19 +194,19 @@ sub do_search {
 	if (scalar( @{$search->found} ) < 1 ) {
 		my @found;
 		my $textblock = $en->textblock_get();
-		my $cp = Efl::Evas::TextblockCursor->new($textblock);
+		my $cp = pEFL::Evas::TextblockCursor->new($textblock);
 		
 		while (1) {
 			$cp->line_char_first();
 			my $line_char_first = $cp->pos_get();
 			
 			my $line_text = $cp->paragraph_text_get(); 
-			$line_text = Efl::Elm::Entry::markup_to_utf8($line_text);
+			$line_text = pEFL::Elm::Entry::markup_to_utf8($line_text);
 			$line_text = Encode::decode("UTF8",$line_text,Encode::FB_CROAK);
 			
 			my $col; my $start = 0;
 			while ( ( $col = index($line_text,$text,$start) ) != -1 ) {
-				#my $find_cp = Efl::Evas::TextblockCursor->new($textblock);
+				#my $find_cp = pEFL::Evas::TextblockCursor->new($textblock);
 				#$find_cp->pos_set($line_char_first + $col);
 				my $find_cp = $line_char_first + $col;
 				push @found, $find_cp; 
@@ -304,15 +304,15 @@ sub replace_clicked {
 	my $entry = $self->app->entry();
 	my $en = $entry->elm_entry();
 	my $stext_markup = $self->elm_entry()->text_get();
-	my $stext = Efl::Elm::Entry::markup_to_utf8($stext_markup);
+	my $stext = pEFL::Elm::Entry::markup_to_utf8($stext_markup);
 	
 	return unless ($stext);
 	
 	my $rtext_markup = $self->elm_replace_entry()->text_get();
-	my $rtext = Efl::Elm::Entry::markup_to_utf8($rtext_markup);
+	my $rtext = pEFL::Elm::Entry::markup_to_utf8($rtext_markup);
 	
 	my $selected_text = $en->selection_get() || "";
-	$selected_text = Efl::Elm::Entry::markup_to_utf8($selected_text);
+	$selected_text = pEFL::Elm::Entry::markup_to_utf8($selected_text);
 	
 	if ($stext eq $selected_text) {
 		$en->entry_insert($rtext);

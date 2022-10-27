@@ -7,11 +7,11 @@ use utf8;
 
 require Exporter;
 
-use Efl::Elm;
-use Efl::Elm::Win;
-use Efl::Elm::Box;
-use Efl::Evas;
-use Efl::Elm::Entry;
+use pEFL::Elm;
+use pEFL::Elm::Win;
+use pEFL::Elm::Box;
+use pEFL::Evas;
+use pEFL::Elm::Entry;
 
 our @ISA = qw(Exporter);
 
