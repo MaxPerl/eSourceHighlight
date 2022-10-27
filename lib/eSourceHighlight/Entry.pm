@@ -115,9 +115,18 @@ sub paste_selection {
 sub on_key_down {
 	my ($self, $evas, $en, $event) = @_;
 	
-	$self->line_column_get($evas, $en, $event);
+	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
+	my $keyname = $e->keyname();
+	my $modifiers = $e->modifiers();
 	
-	$self->highlight_match_braces() if ($self->match_braces eq "yes");
+	$self->line_column_get($evas, $en, $e);
+	
+	if ($modifiers == 2 && $keyname eq "v") {
+		# Don't highlight bratches if the paste shortcut is pressed
+	}
+	elsif ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
+		$self->highlight_match_braces();
+	}
 }
 
 # TODO: Move to eSourceHighlight::Tab
@@ -906,15 +915,13 @@ sub line_get {
 }
 
 sub line_column_get {
-	my ($self, $evas, $en, $event) = @_;
+	my ($self, $evas, $en, $e) = @_;
 	my $column; my $lines;
 	
 	my $label = $self->app->elm_linecolumn_label();
 	return unless(defined($label));
 	
 	$column = $self->column_get();
-	
-	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
 	
 	my $keyname = $e->keyname();
 	if ($keyname =~ m/Up|KP_Prior|Down|KP_Next|Return/ ) {
@@ -951,6 +958,7 @@ sub line_column_get_mouse {
 	if ($button == 1) {
 		$lines = $self->line_get();
 		
+		_remove_match_braces($self,$en->textblock_get());
 		$self->highlight_match_braces();
 	
 	}
