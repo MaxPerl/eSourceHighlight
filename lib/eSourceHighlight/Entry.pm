@@ -82,7 +82,12 @@ sub init_entry {
 	my $en = pEFL::Elm::Entry->add($box);
 	$en->scrollable_set(1);
 	$en->autosave_set(0);
-	#$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
+	
+	# This is necessary because otherwise on paste events sometimes the bold format of 
+	# the pasted text encroaches on other parts of the text :-S
+	# It shouldn't be a problem, as every change event leads to highlighting a line
+	# before and after the inserted text...
+	$en->cnp_mode_set(ELM_CNP_MODE_PLAINTEXT());
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
@@ -92,7 +97,7 @@ sub init_entry {
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
-	$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
+	#$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
 	
@@ -121,6 +126,10 @@ sub on_key_down {
 	
 	$self->line_column_get($evas, $en, $e);
 	
+	#if ($modifiers == 2 && $keyname eq "v") {
+		#_remove_match_braces($en->textblock_get());
+	#}
+	#elsif ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 	if ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 		$self->highlight_match_braces();
 	}
@@ -213,10 +222,10 @@ sub _remove_match_braces {
 	
 		foreach my $fcp (@{$self->match_braces_fmt}) {
 			my $fcp2 = pEFL::Evas::TextblockCursor->new($textblock);
-			$fcp2->pos_set($fcp->pos_get()); $fcp2->char_next();
+			$fcp2->pos_set($fcp->pos_get()); $fcp2->char_next();$fcp2->char_next();
 			
 			my $fcp3 = pEFL::Evas::TextblockCursor->new($textblock);
-			$fcp3->pos_set($fcp->pos_get()); $fcp3->char_prev();
+			$fcp3->pos_set($fcp->pos_get()); $fcp3->char_prev();$fcp3->char_prev();
 			
 			my $text = $fcp3->range_text_get($fcp2, EVAS_TEXTBLOCK_TEXT_MARKUP); 
 			my @formats = $fcp3->range_formats_get_pv($fcp2);
