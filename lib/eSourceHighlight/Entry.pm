@@ -21,25 +21,6 @@ our @ISA = qw(Exporter);
 
 our $AUTOLOAD;
 
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-
-# This allows declaration	use eSourceHighlight ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
-our %EXPORT_TAGS = ( 'all' => [ qw(
-	
-) ] );
-
-our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
-
-our @EXPORT = qw(
-	
-);
-
-our $VERSION = '0.5';
-
 sub new {
 	my ($class, $app, $box) = @_;
 	
@@ -91,6 +72,10 @@ sub init_entry {
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
+	
+	my $user_style = "DEFAULT='font=Monospace'";
+	$en->text_style_user_push($user_style);
+	
 	my $textblock = $en->textblock_get();
 	$textblock->legacy_newline_set(1);
 	
@@ -158,7 +143,7 @@ sub determ_source_lang {
 
 
 sub changed {
-    my ($self, $entry, $ev) = @_;		 
+	my ($self, $entry, $ev) = @_;		 
 	#print "\n\nCHANGE\n";
 	#print "IS UNDO " . $self->is_undo() . "\n";
 	#print "IS REHIGHLIGHT " . $self->is_rehighlight() . "\n";
@@ -482,7 +467,6 @@ sub fill_undo_stack {
 		if ($change_info->insert) {
 			
 			my $prev_pos = $last_undo->{pos} || 0;
-			my $prev_char = $last_undo->{content};
 			my $prev_plain_length = $last_undo->{plain_length} || 0;
 			my $prev_content = $last_undo->{content} || "";
 			
@@ -567,6 +551,86 @@ sub fill_undo_stack {
 	# print "NEW UNDO " . Dumper($new_undo) . "\n\n";
 	# print "UNDO STACK" . Dumper(@{$current_tab->undo_stack}) . "\n\n";
 	return $new_undo;
+}
+
+sub undo {
+	my ($self) = @_;
+	my $entry = $self->elm_entry();
+	
+	my $current_tab = $self->app->current_tab();
+	
+	my $undo = pop @{$current_tab->undo_stack};
+	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
+	# print "\n DO UNDO " . Dumper($undo) . "\n";
+	unless (defined($undo)) {
+		return;
+	}
+	push @{$current_tab->redo_stack}, $undo;
+	
+	if ($undo->{del}) {
+		# It seems that if one inserts withous selection
+		# the event changed,user is not triggered
+		# therefore here $self->is_undo("yes"); is not needed
+		$entry->cursor_pos_set($undo->{start});
+		$entry->entry_insert($undo->{content});
+		$entry->select_none();
+		$self->rehighlight_lines($entry);
+	}
+	elsif ($undo->{pos} >= 0) {
+		$self->is_undo("yes");
+		
+			
+		#$entry->select_region_set($undo->{pos} - $undo->{plain_length}, $undo->{pos});
+		my $text = $undo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);	
+		$entry->select_region_set($undo->{pos}, $undo->{pos} + $undo->{plain_length});
+		$entry->entry_insert("");
+		$entry->select_none();
+	}
+	
+}
+
+sub redo {
+	my ($self) = @_;
+	
+	my $entry = $self->elm_entry();
+	
+	my $current_tab = $self->app->current_tab();
+	
+	my $redo = pop @{$current_tab->redo_stack};
+	return unless( defined($redo) );
+	
+	push @{$current_tab->undo_stack}, $redo;
+	use Data::Dumper;
+	
+	if ($redo->{del}) {
+		$self->is_undo("yes");
+		
+		# We cannot use $redo->{end} because if text with several chars was deleted 
+		# with Delete Key it always is start+1. Therefore we must manually determine 
+		# the length of the deleted content.
+		# see https://github.com/MaxPerl/eSourceHighlight/issues/1
+		# and perhaps https://github.com/MaxPerl/eSourceHighlight/issues/2 ?
+		my $content_plain = pEFL::Elm::Entry::markup_to_utf8($redo->{content});
+		$content_plain = Encode::decode("UTF-8",$content_plain); 
+		decode_entities($content_plain);
+		my $length = length($content_plain);
+		
+		$entry->select_region_set($redo->{start},$redo->{start} + $length);
+		
+		$entry->entry_insert("");
+	}
+	elsif ($redo->{pos} >= 0) {
+		# It seems that if one inserts withous selection
+		# the event changed,user is not triggered
+		# therefore here $self->is_undo("yes") is not needed 
+		my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);	
+		#$entry->cursor_pos_set($redo->{pos}-length($text));
+		$entry->cursor_pos_set($redo->{pos});
+		$entry->entry_insert($redo->{content});
+		$self->rehighlight_lines($entry), $redo;
+	}
+	
+
 }
 
 
@@ -683,7 +747,7 @@ sub highlight_str {
 	}
 	
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
-	#$str =~ s/&amp;/&/g;$text =~ s/&lt;/</g;$text =~ s/&gt;/>/g;
+	#$str =~ s/&/&/g;$text =~ s/</</g;$text =~ s/>/>/g;
 	
 	return $text;
 }
@@ -703,7 +767,7 @@ sub rehighlight_all {
 	my $text = $entry->selection_get();
 	
 	
-	$text = $self->highlight_str($text);      		
+	$text = $self->highlight_str($text);			
 	
 	# if $entry->insert(undef|"") is called, then no "change" event is triggered
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
@@ -809,75 +873,6 @@ sub to_utf8 {
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	return $text;
-}
-
-sub undo {
-	my ($self) = @_;
-	my $entry = $self->elm_entry();
-	
-	my $current_tab = $self->app->current_tab();
-	
-	my $undo = pop @{$current_tab->undo_stack};
-	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
-	# print "\n DO UNDO " . Dumper($undo) . "\n";
-	unless (defined($undo)) {
-		return;
-	}
-	push @{$current_tab->redo_stack}, $undo;
-	
-	if ($undo->{del}) {
-		# It seems that if one inserts withous selection
-		# the event changed,user is not triggered
-		# therefore here $self->is_undo("yes"); is not needed
-		$entry->cursor_pos_set($undo->{start});
-		$entry->entry_insert($undo->{content});
-		$entry->select_none();
-		$self->rehighlight_lines($entry);
-	}
-	elsif ($undo->{pos} >= 0) {
-		$self->is_undo("yes");
-		
-			
-		#$entry->select_region_set($undo->{pos} - $undo->{plain_length}, $undo->{pos});
-		my $text = $undo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
-		$entry->select_region_set($undo->{pos}, $undo->{pos} + $undo->{plain_length});
-		$entry->entry_insert("");
-		$entry->select_none();
-	}
-	
-}
-
-sub redo {
-	my ($self) = @_;
-	
-	my $entry = $self->elm_entry();
-	
-	my $current_tab = $self->app->current_tab();
-	
-	my $redo = pop @{$current_tab->redo_stack};
-	return unless( defined($redo) );
-	
-	push @{$current_tab->undo_stack}, $redo;
-	
-	if ($redo->{del}) {
-		$self->is_undo("yes");
-		
-		$entry->select_region_set($redo->{start},$redo->{end});
-		
-		$entry->entry_insert("");
-	}
-	elsif ($redo->{pos} >= 0) {
-		# It seems that if one inserts withous selection
-		# the event changed,user is not triggered
-		# therefore here $self->is_undo("yes") is not needed 
-		my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);  
-		#$entry->cursor_pos_set($redo->{pos}-length($text));
-		$entry->cursor_pos_set($redo->{pos});
-		$entry->entry_insert($redo->{content});
-		$self->rehighlight_lines($entry), $redo;
-	}
-	
-
 }
 
 sub column_get {
@@ -1008,7 +1003,7 @@ sub set_linecolumn_label {
 	my $label = $self->app->elm_linecolumn_label();
 	return unless(defined($label));
 	$label->text_set("Line: $line Column: $column");
-	$self->current_line($line);	
+	$self->current_line($line); 
 }
 
 ######################

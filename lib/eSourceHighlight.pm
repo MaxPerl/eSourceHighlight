@@ -25,6 +25,10 @@ use HTML::Entities qw(decode_entities);
 use eSourceHighlight::Tab;
 use eSourceHighlight::Entry;
 use eSourceHighlight::Search;
+use eSourceHighlight::Settings;
+
+use Text::Tabs;
+$tabstop = 4;
 
 our $AUTOLOAD; 
 
@@ -61,6 +65,7 @@ sub new {
 		tabs => [],
 		entry => undef,
 		current_tab => 0,
+		settings => undef,
 		share_dir => $share,
 		elm_mainwindow => undef,
 		elm_menu => undef,
@@ -94,7 +99,11 @@ sub init_ui {
 	$ic->file_set($self->share_dir . "/icon1.svg", undef );
 	$ic->size_hint_aspect_set(EVAS_ASPECT_CONTROL_VERTICAL, 1, 1);
 	$win->icon_object_set($ic);
-		
+	
+	# Create settings instance
+	my $settings = eSourceHighlight::Settings->new($self);
+	$self->settings($settings);
+	
 	my $box = pEFL::Elm::Box->add($win);
 	$box->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
 	$box->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
@@ -149,8 +158,8 @@ sub init_tabsbar {
 	$tabsbar->homogeneous_set(1);
 	
 	$tabsbar->align_set(0);
-   	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, EVAS_HINT_FILL);
-   	$tabsbar->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
+	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, EVAS_HINT_FILL);
+	$tabsbar->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
 	
 	$self->elm_tabsbar($tabsbar);
 	$tabsbar->shrink_mode_set(ELM_TOOLBAR_SHRINK_SCROLL);
@@ -173,9 +182,9 @@ sub init_tabsbar {
 
 
 sub _button_click_cb {
-    my ($data, $button, $event_info) = @_;
-    my $item = $data->elm_toolbar_item;
-    $item->del();
+	my ($data, $button, $event_info) = @_;
+	my $item = $data->elm_toolbar_item;
+	$item->del();
 }
 
 
@@ -206,6 +215,7 @@ sub add_menu {
 	$menu->item_add($edit_it,"edit-copy","Copy",sub {$self->entry->elm_entry->selection_copy()},undef);
 	$menu->item_add($edit_it,"edit-paste","Paste",sub {$self->entry->elm_entry->selection_paste()},undef);
 	$menu->item_add($edit_it,"edit-find","Find / Replace",\&toggle_find,$self);
+	$menu->item_add($edit_it,"edit-settings","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
 	
 	my $doc_it = $menu->item_add(undef,undef,"Document",undef, undef);
 	my $linewrap_check = pEFL::Elm::Check->add($menu); $linewrap_check->state_set(1); 
@@ -270,7 +280,7 @@ sub set_src_format {
 	
 	
 	foreach my $lang (@langs) {
-		$list->item_append($itc,$lang, undef, ELM_GENLIST_ITEM_NONE(), \&_select_src_highlight, $self);	
+		$list->item_append($itc,$lang, undef, ELM_GENLIST_ITEM_NONE(), \&_select_src_highlight, $self); 
 	}
 	
 	my $btn = pEFL::Elm::Button->add($bx);
@@ -477,7 +487,7 @@ sub about {
 	$btn->smart_callback_add("clicked",sub {$_[0]->del},$popup);
 	
 	# popup show should be called after adding all the contents and the buttons
-    # of popup to set the focus into popup's contents correctly.
+	# of popup to set the focus into popup's contents correctly.
 	$popup->show();
 	
 }
@@ -571,6 +581,7 @@ sub open_file {
 			$content = $content . $line;
 		}
 		
+		$content = unexpand($content);
 		$content = pEFL::Elm::Entry::utf8_to_markup($content);
 		
 		# Change the filename variable and/or open a new tab
@@ -582,10 +593,10 @@ sub open_file {
 			$tab->filename($selected);
 		}
 		else {
-		 	if ($tab) {
-		 		$tab->content($en->entry_get);
-		 		$tab->cursor_pos($en->cursor_pos_get());
-		 	}
+			if ($tab) {
+				$tab->content($en->entry_get);
+				$tab->cursor_pos($en->cursor_pos_get());
+			}
 			
 			my $new_tab = eSourceHighlight::Tab->new(filename => $selected, id => scalar( @{$self->tabs} ) );
 			$self->current_tab($new_tab);
@@ -803,7 +814,7 @@ sub show_tab_menu {
 
 sub _no_change_tab {
 	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr");		
+	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr"); 	
 	unless ($obj->selected_item_get()) {
 		$tabitem->selected_set(1);
 	}
@@ -952,7 +963,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/tabs|entry|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_match_braces_check|elm_linecolumn_label/;
+		unless $AUTOLOAD =~ m/tabs|entry|settings|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_tabsbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_match_braces_check|elm_linecolumn_label/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;
