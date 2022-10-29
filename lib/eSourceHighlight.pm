@@ -101,8 +101,8 @@ sub init_ui {
 	$win->icon_object_set($ic);
 	
 	# Create settings instance
-	my $settings = eSourceHighlight::Settings->new($self);
-	$self->settings($settings);
+	#my $settings = eSourceHighlight::Settings->new($self);
+	#$self->settings($settings);
 	
 	my $box = pEFL::Elm::Box->add($win);
 	$box->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
@@ -215,7 +215,7 @@ sub add_menu {
 	$menu->item_add($edit_it,"edit-copy","Copy",sub {$self->entry->elm_entry->selection_copy()},undef);
 	$menu->item_add($edit_it,"edit-paste","Paste",sub {$self->entry->elm_entry->selection_paste()},undef);
 	$menu->item_add($edit_it,"edit-find","Find / Replace",\&toggle_find,$self);
-	$menu->item_add($edit_it,"edit-settings","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
+	#$menu->item_add($edit_it,"edit-settings","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
 	
 	my $doc_it = $menu->item_add(undef,undef,"Document",undef, undef);
 	my $linewrap_check = pEFL::Elm::Check->add($menu); $linewrap_check->state_set(1); 
@@ -604,7 +604,8 @@ sub open_file {
 		}
 		
 		# change content of the entry
-		$content =~ s/\n/<br\/>/g;$content =~ s/\t/<tab\/>/g;
+		$content =~ s/\n/<br\/>/g;
+		$content =~ s/\t/<tab\/>/g;
 		$en->entry_set($content);
 
 		# Determ the input language 
