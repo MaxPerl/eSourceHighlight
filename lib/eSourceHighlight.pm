@@ -28,7 +28,6 @@ use eSourceHighlight::Search;
 use eSourceHighlight::Settings;
 
 use Text::Tabs;
-$tabstop = 4;
 
 our $AUTOLOAD; 
 
@@ -101,8 +100,11 @@ sub init_ui {
 	$win->icon_object_set($ic);
 	
 	# Create settings instance
-	#my $settings = eSourceHighlight::Settings->new($self);
-	#$self->settings($settings);
+	my $settings = eSourceHighlight::Settings->new($self);
+	$self->settings($settings);
+	
+	my $config = $settings->load_config();
+	$tabstop = $config->{tabstops} || 4; 
 	
 	my $box = pEFL::Elm::Box->add($win);
 	$box->size_hint_weight_set(EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
@@ -116,7 +118,7 @@ sub init_ui {
 	my $searchbar = pEFL::Elm::Box->new($box);
 	$searchbar->horizontal_set(1);
 	$searchbar->size_hint_weight_set(EVAS_HINT_EXPAND,0);
-	$searchbar->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
+	$searchbar->size_hint_align_set(EVAS_HINT_FILL,0);
 	$box->pack_end($searchbar);
 	$searchbar->show();
 	$self->elm_searchbar($searchbar);
@@ -155,10 +157,10 @@ sub init_tabsbar {
 	my ($self, $box) = @_;
 	my $tabsbar = pEFL::Elm::Toolbar->add($box);
 	
-	$tabsbar->homogeneous_set(1);
+	$tabsbar->homogeneous_set(0);
 	
 	$tabsbar->align_set(0);
-	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, EVAS_HINT_FILL);
+	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, 0);
 	$tabsbar->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
 	
 	$self->elm_tabsbar($tabsbar);
@@ -215,7 +217,7 @@ sub add_menu {
 	$menu->item_add($edit_it,"edit-copy","Copy",sub {$self->entry->elm_entry->selection_copy()},undef);
 	$menu->item_add($edit_it,"edit-paste","Paste",sub {$self->entry->elm_entry->selection_paste()},undef);
 	$menu->item_add($edit_it,"edit-find","Find / Replace",\&toggle_find,$self);
-	#$menu->item_add($edit_it,"edit-settings","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
+	$menu->item_add($edit_it,"preferences-other","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
 	
 	my $doc_it = $menu->item_add(undef,undef,"Document",undef, undef);
 	my $linewrap_check = pEFL::Elm::Check->add($menu); $linewrap_check->state_set(1); 
@@ -247,6 +249,7 @@ sub add_menu {
 	$about_it->content_set($ic);
 	
 	my $src_format_it = $menu->item_add($doc_it,undef,"Set source format",\&set_src_format,$self);
+	my $rehighlight_format_it = $menu->item_add($doc_it,undef,"Rehighlight all",sub {$self->entry->rehighlight_all()},$self);
 	
 	# Keyboard shortcuts
 	pEFL::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
@@ -567,8 +570,34 @@ sub _fs_save_done {
 	$self->save();
 }
 
+sub resize_tab {
+	my ($string,$entry) = @_;
+		my $l = length($string);
+		my $n;
+		if ($l < $tabstop) {
+			$n = $tabstop-$l;
+		}
+	else {
+			$n = $l % $tabstop; 
+			$n = $n == 0 ? $tabstop : $tabstop-$n;
+		}
+
+	$n = $n*$entry->em();
+	#print "STRING $string LENGTH $l \t TABS $n\n";
+	return "$string###tab=$n###"
+}
+
+sub highlight_resized_tabs {
+	my ($content) = @_;
+	$content =~ s!###tab=(\d*)###!<tabstops=$1><tab\/><\/>!g;
+	return $content;
+}
+
+
 sub open_file {
 	my ($self, $selected) = @_;
+	
+	my $config = $self->settings->load_config();
 	
 	if (-e $selected && -f $selected && -r $selected) {
 		
@@ -576,12 +605,24 @@ sub open_file {
 		
 		# Open file
 		open my $fh, "<:encoding(utf-8)", $selected;
-		my $content="";
+		my $content=""; my $line;
 		while (my $line=<$fh>) {
+		
+			# harmonize tabs
+		#	my $match = "([^\t]+)\t";
+		#	$line =~ s!$match!resize_tab($1,$self->entry())!ge;
 			$content = $content . $line;
 		}
+	
+		close $fh;
 		
-		$content = unexpand($content);
+		if ($config->{expand_tabs}) {
+			$content = expand($content);	
+		}
+		elsif ($config->{unexpand_tabs}) {
+			$content = unexpand($content);
+		}
+		
 		$content = pEFL::Elm::Entry::utf8_to_markup($content);
 		
 		# Change the filename variable and/or open a new tab
@@ -602,10 +643,13 @@ sub open_file {
 			$self->current_tab($new_tab);
 			$self->push_tab($new_tab);
 		}
-		
+	
 		# change content of the entry
-		$content =~ s/\n/<br\/>/g;
-		$content =~ s/\t/<tab\/>/g;
+		
+		# This seems to be already done by pEFL::Elm::Entry::utf8_to_markup
+		#$content =~ s/\t/<tab\/>/g;
+		#$content =~ s/\n/<br\/>/g;
+		#print "CONTENT\n\n$content\n\n";
 		$en->entry_set($content);
 
 		# Determ the input language 

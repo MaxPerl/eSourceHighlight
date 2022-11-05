@@ -1,5 +1,4 @@
 package eSourceHighlight::Entry;
-
 use 5.006001;
 use strict;
 use warnings;
@@ -17,6 +16,8 @@ use Syntax::SourceHighlight;
 use HTML::Entities;
 use Encode;
 
+use Text::Tabs;
+
 our @ISA = qw(Exporter);
 
 our $AUTOLOAD;
@@ -31,6 +32,7 @@ sub new {
 		is_change_tab => "no",
 		is_undo => "no",
 		is_rehighlight => "no",
+		is_open => "no",
 		highlight => "no",
 		rehighlight => "yes",
 		paste => "no",
@@ -41,8 +43,10 @@ sub new {
 		current_column => 0,
 		match_braces_fmt => [],
 		search => undef,
+		tabmode => "tabs",
 		sh_obj => undef,
 		sh_langmap => undef,
+		em => undef,
 		elm_entry => undef,
 		};
 	
@@ -53,10 +57,15 @@ sub new {
 
 sub init_entry {
 	my ($self,$app,$box) = @_;
+	
+	my $config = $app->settings->load_config();
+	$self->tabmode("whitespaces") if ($config->{tabmode} eq "Add whitespace");
+	
 	my $share = $app->share_dir();
 	my $h1 = Syntax::SourceHighlight->new("$share/myhtml.outlang"); $self->sh_obj($h1);
 	$h1->setStyleFile("$share/mystyle.style");
 	$h1->setOutputDir("$share"); 
+	$h1->setOptimize(1);
 	
 	my $lm = Syntax::SourceHighlight::LangMap->new(); $self->sh_langmap($lm);
 	
@@ -72,12 +81,22 @@ sub init_entry {
 	$en->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
 	$en->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$en->line_wrap_set(ELM_WRAP_WORD);
-	
-	my $user_style = "DEFAULT='font=Monospace'";
-	$en->text_style_user_push($user_style);
+	$self->elm_entry($en);
 	
 	my $textblock = $en->textblock_get();
 	$textblock->legacy_newline_set(1);
+	
+	my $font = $config->{font} || "Monospace";
+	my $font_size = $config->{font_size} || 10;
+	my $user_style = "DEFAULT='font=$font:style=Regular font_size=$font_size'";
+	my $w = $self->_calc_em($user_style);
+	
+	my $tabs = $w * 4;
+	
+	$user_style = "DEFAULT='font=$font:style=Regular font_size=$font_size tabstops=$tabs'";
+	$en->text_style_user_push($user_style);
+	
+	$en->markup_filter_append(\&tabs_to_whitespaces, $self);
 	
 	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
@@ -92,7 +111,32 @@ sub init_entry {
 	$en->show();
 	
 	$self->app->entry($self);
-	$self->elm_entry($en);
+}
+
+sub _calc_em {
+	my ($self, $user_style) = @_;
+	
+	my $en = $self->elm_entry();
+	my $textblock = $en->textblock_get();
+	
+	my $text = $en->entry_get();
+	
+	$en->text_style_user_push($user_style);
+	
+	my $cp = pEFL::Evas::TextblockCursor->new($textblock);
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	$en->entry_set("m");
+	$cp1->pos_set(1);
+	$cp->pos_set(0);
+	my @rects = $textblock->range_geometry_get_pv($cp,$cp1);
+	my $w = $rects[0]->w();
+	$cp1->free();$cp->free();
+	
+	$self->em($w);
+	
+	$en->entry_set($text);
+	
+	return $w;
 }
 
 sub paste_selection {
@@ -143,7 +187,7 @@ sub determ_source_lang {
 
 
 sub changed {
-	my ($self, $entry, $ev) = @_;		 
+	my ($self, $entry, $ev) = @_;
 	#print "\n\nCHANGE\n";
 	#print "IS UNDO " . $self->is_undo() . "\n";
 	#print "IS REHIGHLIGHT " . $self->is_rehighlight() . "\n";
@@ -177,14 +221,37 @@ sub changed {
 	##########################
 	my $new_cp = $self->auto_indent($entry, $change_info) if ($self->autoindent() eq "yes");
 	
-	
+		
 	##########################
 	# Source highlight
 	#########################
+	my $textblock = $entry->textblock_get();
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	$cp1->pos_set($entry->cursor_pos_get());
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+	$cp2->pos_set($entry->cursor_pos_get());
+	
+	my $text = $self->get_rehighlight_lines($cp1,$cp2, $new_undo);
+	
 	if ( $current_tab->source_highlight() eq "yes" ) {
-		$self->rehighlight_lines($entry, $new_undo);
-		# Reset Cursor
+		$text = $self->highlight_str($text);
 	}
+	
+	#########################
+	# resize and format tabs / format newlines
+	########################
+	#unless ($self->tabmode() eq "whitespaces") {
+		$text = $self->resize_tabs($text) if ($text);
+		$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+	#}
+	
+	$text =~ s/\n/<br\/>/g; $text =~ s/\t/<tab\/>/g;
+	
+	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$text);
+	
+	$cp1->free();
+	$cp2->free();
+	
 	
 	######################
 	# Clear search results
@@ -224,6 +291,7 @@ sub _remove_match_braces {
 		$self->match_braces_fmt([]);
 	}
 }
+
 sub highlight_match_braces {
 	my ($self) = @_;
 	my $en = $self->elm_entry();
@@ -392,7 +460,7 @@ sub highlight_match_braces {
 				$cp2->char_next(); 
 				$cp2->format_append("</font_weight>");
 				
-				last;	
+				last;
 			}
 			elsif ($search_pos == -1 && $match_pos != -1) {
 				$depth--;
@@ -444,7 +512,8 @@ sub fill_undo_stack {
 	
 	my $current_tab = $self->app->current_tab();
 	my $change = $change_info->change();
-	
+	#use Data::Dumper;
+	#print "CHANGE " . Dumper($change) . "\n";
 	my @undo_stack = @{$current_tab->undo_stack};
 	my $last_undo = $undo_stack[$#undo_stack];
 	my $new_undo;
@@ -472,27 +541,33 @@ sub fill_undo_stack {
 			
 			my $new_pos = $change->{insert}->{pos};
 			my $insert_content = $change->{insert}->{content};
+			my $new_plain_length;
+			
 			my $insert_content_plain = $insert_content;
 			$insert_content_plain = pEFL::Elm::Entry::markup_to_utf8($insert_content);
 			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
 			decode_entities($insert_content_plain);
-			 
 			#my $new_plain_length = $change->{insert}->{plain_length};
-			my $new_plain_length = length($insert_content_plain);
+			$new_plain_length = length($insert_content_plain);
 			
+			
+			# Special case: <tab/> was replaced by filter
+			# Undo record is already created 
+			if ($insert_content eq "<tab\/>" && $self->tabmode() eq "whitespaces" && $last_undo->{replaced_tab}) {
+				
+			}
 			# Make a new undo record, only if a new word starts, a tab is inserted or a newline
-			if ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content =~ m/\S/ && $insert_content ne "<br/>" && $insert_content ne "<tab/>" ) {
+			elsif ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content_plain =~ m/\S/ && $insert_content ne "<br/>" && $insert_content ne "<tab/>" ) {
 				pop @{$current_tab->undo_stack};
 				$new_undo->{pos} = $prev_pos;
 				
 				$new_undo->{plain_length} = $prev_plain_length + $new_plain_length;
-				$new_undo->{content} = $prev_content . $insert_content;
+				$new_undo->{content} = $prev_content . $insert_content_plain;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
-			elsif ($insert_content) {
+			elsif (defined($insert_content_plain)) {
 				$new_undo->{pos} = $new_pos;
-				my $prev= $insert_content;
-				$new_undo->{content} = $insert_content if ($insert_content);
+				$new_undo->{content} = $insert_content_plain if (defined($insert_content_plain));
 				$new_undo->{plain_length} = $new_plain_length;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
@@ -517,13 +592,17 @@ sub fill_undo_stack {
 			}
 			my $content = $change->{del}->{content};
 			
+			my $content_plain = $content;
+			$content_plain = pEFL::Elm::Entry::markup_to_utf8($content);
+			$content_plain = Encode::decode("UTF-8",$content_plain); 
+			
 			# BackSlash key is pressed
 			if ($last_undo->{del} && $prev_start == ($start +1) ) {
 				pop @{$current_tab->undo_stack};
 				$new_undo->{del} = 1;
 				$new_undo->{start} = $start;
 				$new_undo->{end} = $prev_end;
-				$new_undo->{content} = $content . $prev_content;
+				$new_undo->{content} = $content_plain . $prev_content;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
 			# Delete key is pressed
@@ -532,7 +611,7 @@ sub fill_undo_stack {
 				$new_undo->{del} = 1;
 				$new_undo->{start} = $start;
 				$new_undo->{end} = $end;
-				$new_undo->{content} = $prev_content . $content;
+				$new_undo->{content} = $prev_content . $content_plain;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
 			# a new area is deleted
@@ -540,7 +619,7 @@ sub fill_undo_stack {
 				$new_undo->{del} = 1;
 				$new_undo->{start} = $start;
 				$new_undo->{end} = $end;
-				$new_undo->{content} = $content;
+				$new_undo->{content} = $content_plain;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
 		
@@ -559,33 +638,37 @@ sub undo {
 	
 	my $current_tab = $self->app->current_tab();
 	
+	#use Data::Dumper;
+	#print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
+	
 	my $undo = pop @{$current_tab->undo_stack};
 	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
-	# print "\n DO UNDO " . Dumper($undo) . "\n";
+	
 	unless (defined($undo)) {
 		return;
 	}
 	push @{$current_tab->redo_stack}, $undo;
-	
 	if ($undo->{del}) {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes"); is not needed
 		$entry->cursor_pos_set($undo->{start});
+		$undo->{content} =~ s/\t/<tab\/>/g; $undo->{content} =~ s/\n/<br\/>/g;
 		$entry->entry_insert($undo->{content});
 		$entry->select_none();
-		$self->rehighlight_lines($entry);
+		$self->rehighlight_and_retab_lines($undo);
+		$entry->cursor_pos_set($undo->{end});
 	}
 	elsif ($undo->{pos} >= 0) {
 		$self->is_undo("yes");
 		
-			
 		#$entry->select_region_set($undo->{pos} - $undo->{plain_length}, $undo->{pos});
-		my $text = $undo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);	
+		my $text = $undo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);
 		$entry->select_region_set($undo->{pos}, $undo->{pos} + $undo->{plain_length});
 		$entry->entry_insert("");
 		$entry->select_none();
 	}
+	
 	
 }
 
@@ -593,14 +676,15 @@ sub redo {
 	my ($self) = @_;
 	
 	my $entry = $self->elm_entry();
-	
 	my $current_tab = $self->app->current_tab();
+	
+	#use Data::Dumper;
+	#print "\n DO REDO " . Dumper($current_tab->redo_stack) . "\n";
 	
 	my $redo = pop @{$current_tab->redo_stack};
 	return unless( defined($redo) );
 	
 	push @{$current_tab->undo_stack}, $redo;
-	use Data::Dumper;
 	
 	if ($redo->{del}) {
 		$self->is_undo("yes");
@@ -623,13 +707,14 @@ sub redo {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes") is not needed 
-		my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);	
+		#my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);
 		#$entry->cursor_pos_set($redo->{pos}-length($text));
+		$redo->{content} =~ s/\t/<tab\/>/g; $redo->{content} =~ s/\n/<br\/>/g;
 		$entry->cursor_pos_set($redo->{pos});
 		$entry->entry_insert($redo->{content});
-		$self->rehighlight_lines($entry), $redo;
+		$self->rehighlight_and_retab_lines($redo); #, $redo;??
+		$entry->cursor_pos_set($redo->{pos} + $redo->{plain_length});
 	}
-	
 
 }
 
@@ -657,13 +742,13 @@ sub auto_indent {
 		$content = $change->{insert}->{content};
 	}
 	
-	if ($content eq "<br/>") {		
+	if ($content eq "<br/>") {
 		#$cp1->pos_set($entry->cursor_pos_get() );
 		$cp1->paragraph_prev();
 		$cp1->paragraph_char_first();
 		my $text = $cp1->paragraph_text_get();
 		 
-		if ($text) {				
+		if ($text) {
 			
 			my $tabs = "";
 			my $plain_length = 0; 
@@ -718,20 +803,152 @@ sub on_paste {
 	$self->rehighlight("yes");
 }
 
+sub resize_tab_re {
+	my $entry = shift; my $string = shift;
+	# TODO: Copy the utf form from highlight_string
+	my $utf8 = pEFL::Elm::Entry::markup_to_utf8($string);
+	$utf8 = Encode::decode("UTF-8",$utf8);
+	my $l = length($utf8);
+	my $n;
+	
+	if ($l < $tabstop) {
+		$n = $tabstop-$l;
+	}
+	else {
+		$n = $l % $tabstop; 
+		$n = $n == 0 ? $tabstop : $tabstop-$n;
+	}
+	# print "STR $utf8 L $l N $n\n"; 
+	$n = $n*$entry->em();
+	
+	# print "TABS $n\n";
+	return "$string<tabstops=$n>"
+}
+
+sub resize_tabs {
+	my $self = shift; my $content = shift;
+	
+	my @lines = split(/\n/,$content);
+	
+	# Save the last newlines
+	my $newlines = "";
+	while (chomp($content)) {
+		$newlines = $newlines . "\n";
+	}
+	
+	#use Data::Dumper;
+	#$Data::Dumper::Terse = 1;
+	#$Data::Dumper::Useqq = 1;
+	#print "CONTENT " . Dumper($content) ."\n";
+	#print "LINES " . Dumper(@lines) ."\n";
+	my $new_content = "";
+	my $i;
+	for ($i=0; $i <= $#lines; $i++) {
+			my $line  = $lines[$i];
+			#$line = unexpand($line);
+		
+			# harmonize tabs
+			my $match = "([^\t]+)\t";
+			$line =~ s!$match!resize_tab_re($self,$1)!ge;
+			$new_content = $new_content . $line . "\n"; 
+			$new_content = $new_content . $newlines if ($i == $#lines);
+	}
+	
+	# Split added newline of last line
+	$new_content =~ s/\n$//;
+	#print "NEW CONTENT ". Dumper($new_content) . "\n\n";
+		
+	return $new_content;
+	
+}
+
+sub highlight_resized_tabs {
+	my ($entry,$content,$searchPattern) = @_;
+	$content =~ s!$searchPattern!<tabstops=$1><tab\/><\/>!g;
+	return $content;
+}
+
+sub resize_whitespaces_re {
+	my ($utf8) = @_;
+	
+	return " " x $tabstop unless($utf8);
+	my $l = length($utf8);
+	my $n;
+	
+	if ($l < $tabstop) {
+		$n = $tabstop-$l;
+	}
+	else {
+		$n = $l % $tabstop; 
+		$n = $n == 0 ? $tabstop : $tabstop-$n;
+	}
+	my $whitespace = " " x $n;
+	return "$whitespace";
+}
+
+sub tabs_to_whitespaces {
+	my ($entry, $en, $text) = @_;
+	
+	return $text unless ($entry->tabmode() eq "whitespaces");
+	
+	if ($text eq "<tab\/>") {
+		my $textblock = $en->textblock_get();
+		my $cp1 = pEFL::Evas::TextblockCursor->new($textblock); 
+		my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+		
+		$cp1->pos_set($en->cursor_pos_get()); 
+		$cp1->paragraph_char_first();
+		$cp2->pos_set($en->cursor_pos_get());
+		
+		my $line = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
+		$line = Encode::decode("UTF-8",$line);
+		
+		$line =~ m!([^\t]+)$!;
+		
+		$text = resize_whitespaces_re($1);
+		
+		$cp1->free(); $cp2->free();
+		
+		# Unfortunately the filter doesn't change the ChangeInfo
+		# Therefore we create here the undo record and push it to 
+		# the undo stack
+		my $replaced_char_undo = {
+			content => $text,
+			plain_length => length($text),
+			pos => $en->cursor_pos_get(),
+			replaced_tab => 1,
+		};
+		my $current_tab = $entry->app->current_tab();
+		push @{$current_tab->undo_stack}, $replaced_char_undo;
+	}
+	
+	return $text;
+}
+
+
+
 sub highlight_str {
-	my ($self, $text) = @_;
+	my $self = shift; my $text = shift;
 	
 	# $entry->selection_get gets the text in markup format!!!
 	# Therefore convert it to utf8
-	$text = pEFL::Elm::Entry::markup_to_utf8($text);
-	$text = Encode::decode("UTF-8",$text);
-	decode_entities($text);
+	#$text = pEFL::Elm::Entry::markup_to_utf8($text);
+	#$text = Encode::decode("UTF-8",$text);
 	
+	# Here we mustn't decode entities!!!!
+	# Otherwise one can not input something like "<"
+	# I hope this doesn't brings new problems :-S
+	# but ö should no problem in entry....
+	#decode_entities($text);
+	
+	#print "Set rehighlight no in highlight_str\n";
+	$self->rehighlight("no");
 	
 	# Check whether there is a $sh_lang for the document
 	my $sh_obj = $self->sh_obj; 
 	my $sh_lm = $self->sh_langmap(); 
 	my $sh_lang = $self->app->current_tab->sh_lang();
+	
 	
 	if (defined($sh_lang) && $sh_lang =~ m/\.lang$/) {
 		#decode_entities($text);
@@ -746,34 +963,49 @@ sub highlight_str {
 		encode_entities($text,"<>&");
 	}
 	
-	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
+	######################
+	# resize tabs
+	#######################
+	
+	#$text = $self->resize_tabs($text) if ($text);
+	#$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+	#$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	#$str =~ s/&/&/g;$text =~ s/</</g;$text =~ s/>/>/g;
 	
 	return $text;
 }
 
-
+# Used by eSourceHighlight when opening a file
+# and by eSourceHighlight::Settings when saving settings
 sub rehighlight_all {
 	my ($self) = @_;
 	
 	my $entry = $self->elm_entry();
 	
 	#print "Set rehighlight no in rehighlight_all\n";
-	$self->rehighlight("no");
+	#$self->rehighlight("no");
 	
 	my $cursor_pos = $entry->cursor_pos_get();
 	
-	$entry->select_all();
-	my $text = $entry->selection_get();
 	
+	my $text = $entry->entry_get();
+	$text = pEFL::Elm::Entry::markup_to_utf8($text);
+	$text = Encode::decode("UTF-8",$text);
 	
-	$text = $self->highlight_str($text);			
+	$text = $self->highlight_str($text);
+	
+	# Resize Tabs (TODO: Own function)
+	$text = $self->resize_tabs($text) if ($text);
+	$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	# if $entry->insert(undef|"") is called, then no "change" event is triggered
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
 	# therefore check, whether there is a text
 	if ($text) {
+
 		$self->is_rehighlight("yes");
+		$entry->select_all();
 		$entry->entry_insert($text);
 	}
 	else {
@@ -786,19 +1018,17 @@ sub rehighlight_all {
 }
 
 # $undo ist the item of the undo stack
-sub rehighlight_lines {
-	my ($self, $entry, $undo) = @_;
+sub get_rehighlight_lines {
+	#my ($self, $entry, $undo) = @_;
+	my ($self, $cp1, $cp2, $undo) = @_;
 	
 	# Check whether there is a $sh_lang for the document
-	my $sh_lang = $self->app->current_tab->sh_lang(); 
-	return unless (defined($sh_lang));
+	#my $sh_lang = $self->app->current_tab->sh_lang(); 
+	#return unless (defined($sh_lang));
 	
-	#print "Set rehighlight no in rehighlight_lines\n";
-	$self->rehighlight("no");
-	
-	my $textblock = $entry->textblock_get();
-	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
-	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+	#my $textblock = $entry->textblock_get();
+	#my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	#my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	if (defined($undo)) {
 		if ($undo->{del}) {
 			# if there is a del event then we relight from the line before 
@@ -824,32 +1054,73 @@ sub rehighlight_lines {
 		}
 	}
 	else {
-		# Otherwiese we relight from the line before the actual cursor position...
-		$cp1->pos_set($entry->cursor_pos_get());
+		# Otherwise we relight from the line before the actual cursor position...
 		$cp1->paragraph_prev();
 		$cp1->paragraph_char_first;
 		
 		# .. to the line after the actual cursor position :-)
-		$cp2->pos_set($entry->cursor_pos_get());
+		#$cp2->pos_set($entry->cursor_pos_get());
 		$cp2->paragraph_next;
 		$cp2->line_char_last;
 	}
-	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_MARKUP);
+	#my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_MARKUP);
+	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
+	$text = Encode::decode("UTF-8",$text);
 	
-	$text = $self->highlight_str($text);
+	# Here we mustn't decode entities!!!!
+	# Otherwise one can not input something like "<"
+	# I hope this doesn't brings new problems :-S
+	# but ö should no problem in entry....
+	#decode_entities($text);
 	
+	return $text;
+}
+	
+sub set_rehighlight_lines { 
+	my ($self, $textblock, $cp1, $cp2, $text) = @_; 
 	# if $entry->insert(undef|"") is called, then no "change" event is triggered
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
 	# therefore check, whether there is a text
 	if ($text) {
-		#$self->is_rehighlight("yes");
-		#$entry->entry_insert($text);
+	
 		$cp1->range_delete($cp2);
-		$textblock->text_markup_prepend($cp1,$text)
+		$textblock->text_markup_prepend($cp1,$text);
+	}
+
+}
+
+sub rehighlight_and_retab_lines {
+	my ($self, $new_undo) = @_;
+	
+	my $entry = $self->elm_entry();
+	my $current_tab = $self->app->current_tab();
+	
+	my $textblock = $entry->textblock_get();
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	$cp1->pos_set($entry->cursor_pos_get());
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+	$cp2->pos_set($entry->cursor_pos_get());
+	
+	my $text = $self->get_rehighlight_lines($cp1,$cp2, $new_undo);
+	my $mkp_text = $text;
+	
+	if ( $current_tab->source_highlight() eq "yes" ) {
+		$mkp_text = $self->highlight_str($text);
 	}
 	
+	#########################
+	# resize and format tabs / format newlines
+	########################
+	$mkp_text = $self->resize_tabs($mkp_text) if ($mkp_text);
+	$mkp_text = $self->highlight_resized_tabs($mkp_text, "<tabstops=(\\d*)>");
+	
+	
+	$mkp_text =~ s/\n/<br\/>/g;$mkp_text =~ s/\t/<tab\/>/g;
+	
+	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$mkp_text);
+	
 	$cp1->free();
-	$cp2->free();	
+	$cp2->free();
 }
 
 sub clear_highlight {
@@ -860,6 +1131,7 @@ sub clear_highlight {
 	my $text = $entry->entry_get();
 	
 	$text = $self->to_utf8($text);
+	$text = $self->resize_tabs($text);
 	
 	$entry->entry_set($text);
 }
@@ -867,9 +1139,15 @@ sub clear_highlight {
 sub to_utf8 {
 	my ($self,$text) = @_;
 	
+	$text = pEFL::Elm::Entry::markup_to_utf8($text);
+	
 	$text = Encode::decode("UTF-8",$text);
-	decode_entities($text);
-	#$text = pEFL::Elm::Entry::markup_to_utf8($text);
+	
+	# We must encode the HTML entities.
+	# Otherwise everything inside <.*> is deleted when entry is
+	# set. Here it is about output of perl!!!
+	encode_entities($text);
+	
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	return $text;
@@ -1014,7 +1292,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|highlight|rehighlight|current_line|current_column|match_braces|match_braces_fmt|paste|linewrap|autoindent|search|sh_obj|sh_langmap|elm_entry|/;
+		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|is_open|highlight|rehighlight|current_line|current_column|match_braces|match_braces_fmt|paste|linewrap|autoindent|search|tabmode|sh_obj|sh_langmap|em|elm_entry|/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;
@@ -1057,7 +1335,6 @@ Blah blah blah.
 =head2 EXPORT
 
 None by default.
-
 
 
 =head1 SEE ALSO
