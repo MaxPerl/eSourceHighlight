@@ -23,6 +23,7 @@ use Cwd qw(abs_path getcwd);
 use HTML::Entities qw(decode_entities);
 
 use eSourceHighlight::Tab;
+use eSourceHighlight::Tabs;
 use eSourceHighlight::Entry;
 use eSourceHighlight::Search;
 use eSourceHighlight::Settings;
@@ -61,7 +62,7 @@ sub new {
 	our $share = dist_dir('eSourceHighlight');
 	
 	my $obj = {
-		tabs => [],
+		tabs => undef,
 		entry => undef,
 		current_tab => 0,
 		settings => undef,
@@ -70,7 +71,6 @@ sub new {
 		elm_menu => undef,
 		elm_searchbar => undef,
 		elm_toolbar => undef,
-		elm_tabsbar => undef,
 		# Statusbar
 		elm_doctype_label => undef,
 		elm_src_highlight_check => undef,
@@ -112,8 +112,8 @@ sub init_ui {
 	$win->resize_object_add($box);
 	$box->show();
 	
-	 
-	init_tabsbar($self,$box);
+	my $tabs = eSourceHighlight::Tabs->new($self,$box);
+	$self->tabs($tabs);
 	
 	my $searchbar = pEFL::Elm::Box->new($box);
 	$searchbar->horizontal_set(1);
@@ -143,7 +143,7 @@ sub init_ui {
 	else {
 		my $tab = eSourceHighlight::Tab->new(filename => "", id => 0);
 		$self->current_tab($tab);
-		$self->push_tab($tab);
+		$self->tabs()->push_tab($tab);
 	}
 	
 	$win->resize(900,600);
@@ -151,35 +151,6 @@ sub init_ui {
 
 	pEFL::Elm::run();
 	pEFL::Elm::shutdown();
-}
-
-sub init_tabsbar {
-	my ($self, $box) = @_;
-	my $tabsbar = pEFL::Elm::Toolbar->add($box);
-	
-	$tabsbar->homogeneous_set(0);
-	
-	$tabsbar->align_set(0);
-	$tabsbar->size_hint_align_set(EVAS_HINT_FILL, 0);
-	$tabsbar->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
-	
-	$self->elm_tabsbar($tabsbar);
-	$tabsbar->shrink_mode_set(ELM_TOOLBAR_SHRINK_SCROLL);
-	$tabsbar->transverse_expanded_set(1);
-	$box->pack_end($tabsbar);
-	
-	# This is very tricky
-	# _close_tab_cb only works if the right tab is selected
-	# the easiest solution would be to make an own menu for each toolbar item
-	# unfortunately this does not work (because items can not have own evas (smart) events
-	# therefore the solution here is only to show the menu when a left click occurs at the
-	# selected tab item (see show_tab_menu)
-	my $menu = pEFL::Elm::Menu->add($tabsbar);
-	$menu->item_add(undef,undef,"Close tab",\&_close_tab_cb,$self);
-	$tabsbar->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN,\&show_tab_menu,$menu);
-	$tabsbar->smart_callback_add("selected",\&_no_change_tab,$self);
-
-	$tabsbar->show();
 }
 
 
@@ -200,11 +171,11 @@ sub add_menu {
 	
 	my $file_it = $menu->item_add(undef,undef,"File",undef, undef);
 	
-	$menu->item_add($file_it,"document-new","New",\&_new_tab_cb,$self);
+	$menu->item_add($file_it,"document-new","New",\&_new_tab_cb,$self->tabs());
 	$menu->item_add($file_it,"document-open","Open",\&_open_cb,$self);
 	$menu->item_add($file_it,"document-save","Save",\&save,$self);
 	$menu->item_add($file_it,"document-save-as","Save as",\&save_as,$self);
-	$menu->item_add($file_it,"document-close","Close current tab",\&_close_tab_cb,$self);
+	$menu->item_add($file_it,"document-close","Close current tab",\&_close_tab_cb,$self->tabs());
 	$menu->item_add($file_it,"window-close","Exit",\&on_exit,$self);
 	
 	
@@ -333,7 +304,7 @@ sub key_down {
 	my $modifiers = $e->modifiers();
 	
 	if ($modifiers == 2 && $keyname eq "n") {
-		_new_tab_cb($self);
+		_new_tab_cb($self->tabs());
 	}
 	elsif ($modifiers == 2 && $keyname eq "o") {
 		_open_cb($self);
@@ -345,7 +316,7 @@ sub key_down {
 		save_as($self);
 	}
 	elsif ($modifiers == 2 && $keyname eq "w") {
-		_close_tab_cb($self);
+		_close_tab_cb($self->tabs);
 	}
 	elsif ($modifiers == 2 && $keyname eq "q") {
 		on_exit($self);
@@ -407,7 +378,7 @@ sub key_down {
 sub on_exit {
 	my ($self) = @_;
 	
-	my @unsaved = grep $_->changed() > 0, @{$self->tabs()};
+	my @unsaved = grep $_->changed() > 0, @{$self->tabs->tabs()};
 	
 	if (@unsaved) {
 		my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
@@ -432,13 +403,7 @@ sub on_exit {
 	}
 }
 
-sub _new_tab_cb {
-	my ($self) = @_;
-	my @tabs = @{$self->tabs};
-	my $tab_id = $#tabs+1;
-	my $tab = eSourceHighlight::Tab->new(id => $tab_id);
-	$self->push_tab($tab);
-}
+
 
 sub file_cb {
 	my ($self) = @_;
@@ -455,14 +420,16 @@ sub file_cb {
 	
 	my $fs = pEFL::Elm::Fileselector->add($fs_win);
 	
-	my $path; 
+	my $path; my $filename;
 	if ($self->current_tab->filename) { 
 		(undef, $path, undef) = fileparse( $self->current_tab->filename );
+		$filename = $self->current_tab->filename;
 	}
 	else { 
 		$path = getcwd || File::HomeDir->my_home;
 	}
 	$fs->path_set($path);
+	$fs->selected_set($filename) if ($filename);
 	$fs->expandable_set(0);
 	$fs->expandable_set(0);
 	$fs->size_hint_weight_set(EVAS_HINT_EXPAND,EVAS_HINT_EXPAND);
@@ -531,7 +498,10 @@ sub save {
 		
 		# umlauts etc. must be converted
 		$content = Encode::decode("utf-8",$content);
-		decode_entities($content);
+		
+		# Here we mustn't decode entities
+		# otherwise for example &lt; is saved as <
+		#decode_entities($content);
 		
 		
 		open my $fh, ">:encoding(UTF-8)", $filename or die "Could not save file: $filename\n";
@@ -568,29 +538,6 @@ sub _fs_save_done {
 	$current_tab->filename($selected);
 	
 	$self->save();
-}
-
-sub resize_tab {
-	my ($string,$entry) = @_;
-		my $l = length($string);
-		my $n;
-		if ($l < $tabstop) {
-			$n = $tabstop-$l;
-		}
-	else {
-			$n = $l % $tabstop; 
-			$n = $n == 0 ? $tabstop : $tabstop-$n;
-		}
-
-	$n = $n*$entry->em();
-	#print "STRING $string LENGTH $l \t TABS $n\n";
-	return "$string###tab=$n###"
-}
-
-sub highlight_resized_tabs {
-	my ($content) = @_;
-	$content =~ s!###tab=(\d*)###!<tabstops=$1><tab\/><\/>!g;
-	return $content;
 }
 
 
@@ -630,7 +577,7 @@ sub open_file {
 		
 		my $tab = $self->current_tab();
 		
-		if ( (scalar(@{$self->tabs}) == 1) && (!$tab->filename) && ($tab->id == 0) && ($tab->changed() == 0)) { 
+		if ( (scalar(@{$self->tabs->tabs}) == 1) && (!$tab->filename) && ($tab->id == 0) && ($tab->changed() == 0)) { 
 			$tab->filename($selected);
 		}
 		else {
@@ -639,9 +586,9 @@ sub open_file {
 				$tab->cursor_pos($en->cursor_pos_get());
 			}
 			
-			my $new_tab = eSourceHighlight::Tab->new(filename => $selected, id => scalar( @{$self->tabs} ) );
+			my $new_tab = eSourceHighlight::Tab->new(filename => $selected, id => scalar( @{$self->tabs->tabs} ) );
 			$self->current_tab($new_tab);
-			$self->push_tab($new_tab);
+			$self->tabs()->push_tab($new_tab);
 		}
 	
 		# change content of the entry
@@ -666,7 +613,7 @@ sub open_file {
 		$en->cursor_pos_set(0);
 	}
 	else {
-		die "Could not open file $selected\n";
+		warn "Could not open file $selected\n";
 	}
 }
 
@@ -684,41 +631,7 @@ sub _fs_open_done {
 	
 }
 
-sub _close_tab_cb {
-	my ($self) = @_;
-	
-	my @tabs = @{$self->tabs}; 
-	my $current_tab = $self->current_tab();
-	
-	if ($current_tab->changed() > 0) {
-		my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
-		
-		$popup->part_text_set("default","Warning: Tab contains unsaved content. Close anyway?");
-		
-		my $btn1 = pEFL::Elm::Button->add($popup);
-		$btn1->text_set("Okay");
-		$btn1->smart_callback_add("clicked" => sub {$current_tab->changed(0); $popup->del(); $self->_close_tab_cb});
-		
-		my $btn2 = pEFL::Elm::Button->add($popup);
-		$btn2->text_set("Cancel");
-		$btn2->smart_callback_add("clicked" => sub {$popup->del});
-		
-		$popup->part_content_set("button1", $btn1);
-		$popup->part_content_set("button2", $btn2);
-		
-		$popup->show();
-	}
-	else {
-		my $tab_id = $current_tab->id();
-		$self->clear_tabs();
-		splice @tabs,$tab_id,1;
-		$self->refresh_tabs(@tabs);
-	}
-	
-	if ($#tabs < 0 ) {
-		pEFL::Elm::exit();
-	}
-}
+
 
 sub toggle_find {
 	my ($self, $obj, $event) = @_;
@@ -789,125 +702,6 @@ sub toggle_match_braces {
 		$entry->match_braces("yes");
 		$check->state_set(1);
 	}
-}
-
-
-##################################
-# tabsbar / tabs
-##################################
-sub clear_tabs {
-	my ($self) = @_;
-	
-	foreach my $tab (@{$self->tabs}) {
-		$tab->elm_toolbar_item->del();
-		$tab->elm_toolbar_item(undef);
-	}
-	
-	$self->tabs([]);
-}
-
-sub refresh_tabs {
-	my ($self,@tabs) = @_;
-	
-	my $id = 0;
-	foreach my $tab (@tabs) {
-		$self->push_tab($tab);
-		$tab->id($id);
-		$id++;
-	}
-}
-
-sub push_tab {
-	my ($self, $tab) = @_;
-	
-	push @{$self->tabs}, $tab;
-	my @tabs = @{$self->tabs};
-	
-	my $tabsbar = $self->elm_tabsbar();
-	my $filename = $tab->filename() || "Untitled";
-	
-	my ($name,$dirs,$suffix) = fileparse($filename);
-	$name = "$name*" if ($tab->changed()>0);
-	 
-	my $id = $#tabs;
-	
-	my $tab_item = $tabsbar->item_append(undef,$name, \&change_tab, [$self, $id]);
-	
-	$tab->elm_toolbar_item($tab_item);
-	
-	# Select the new item and deselect the actual selected item
-	$tab_item->selected_set(1);
-}
-
-
-sub show_tab_menu {
-	my ($menu, $evas, $obj, $evinfo) = @_;
-	my $ev = pEFL::ev_info2obj($evinfo, "pEFL::Evas::Event::MouseDown");
-	
-	my $selected = $obj->selected_item_get();
-	my $track = $selected->track();
-	my ($x,$y,$w,$h) = $track->geometry_get();
-	$selected->untrack();
-	my $canvas = $ev->canvas();
-	return unless ($canvas->{x} > $x && $canvas->{x} < $x+$w);
-	
-	if ($ev->button == 3) {
-		$menu->move($canvas->{x},$canvas->{y});
-		$menu->show();
-	}
-}
-
-sub _no_change_tab {
-	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr"); 	
-	unless ($obj->selected_item_get()) {
-		$tabitem->selected_set(1);
-	}
-} 
-
-sub change_tab {
-	my ($data, $obj, $ev_info) = @_;
-	my $tabitem = pEFL::ev_info2obj($ev_info, "ElmToolbarItemPtr");
-	
-	my $self = $data->[0];
-	my $id = $data->[1]; 
-	
-	my $tabs = $self->tabs();
-	my $entry = $self->entry;
-	
-	
-	my $en=$entry->elm_entry;
-	if ( ref($self->current_tab) eq "eSourceHighlight::Tab") {
-		 my $current = $self->current_tab;
-		 $current->content($en->entry_get);
-		 $current->cursor_pos($en->cursor_pos_get());
-	}
-	else {
-		warn "Warn: This is very curious :-S There is no current tab???\n";
-	}
-	my $tab = $tabs->[$id];
-	$self->current_tab($tab);
-		
-	$entry->is_change_tab("yes");
-	$en->entry_set($tab->content);
-	$en->focus_set(1);
-		
-	$self->change_doctype_label();
-	$self->change_doctype_options();
-		
-	######################
-	# Clear search results
-	######################
-	$self->entry()->search()->clear_search_results();
-	
-	#######################
-	# Clear match braces cursors
-	#######################
-	foreach my $fcp (@{$self->entry->match_braces_fmt}) {
-		$fcp->free();
-	}
-	$self->entry->match_braces_fmt([]);
-		
 }
 
 sub change_doctype_options {
@@ -1008,7 +802,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~ m/tabs|entry|settings|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_tabsbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_match_braces_check|elm_linecolumn_label/;
+		unless $AUTOLOAD =~ m/tabs|entry|settings|share_dir|current_tab|elm_mainwindow|elm_menu|elm_toolbar|elm_searchbar|elm_doctype_label|elm_src_highlight_check|elm_linewrap_check|elm_autoident_check|elm_match_braces_check|elm_linecolumn_label/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;

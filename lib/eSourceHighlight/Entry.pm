@@ -322,7 +322,7 @@ sub highlight_match_braces {
 		$cp1->paragraph_char_first();
 		my $text = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
-		decode_entities($text);
+		#decode_entities($text);
 		my $start = $cp2->pos_get() - $cp1->pos_get();
 		
 		while (1) {
@@ -335,7 +335,7 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
-				decode_entities($text);
+				#decode_entities($text);
 				
 				
 				$start = length($text);
@@ -347,7 +347,7 @@ sub highlight_match_braces {
 					$cp1->paragraph_prev(); 
 					$text = $cp1->paragraph_text_get(); $cp1->paragraph_char_first();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
-					decode_entities($text);
+					#decode_entities($text);
 					
 					#$text = Encode::decode("UTF-8",$text);
 					
@@ -363,7 +363,7 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					decode_entities($text);
+					#decode_entities($text);
 					
 					
 					$start = length($text);
@@ -413,7 +413,7 @@ sub highlight_match_braces {
 		$cp1->line_char_last();  
 		my $text = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
-		decode_entities($text);
+		#decode_entities($text);
 		my $found = undef; my $start = 0;
 		$cp1->pos_set($cp2->pos_get());
 		
@@ -426,7 +426,7 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();
 				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
-				decode_entities($text);
+				#decode_entities($text);
 				
 				$start = 0;
 			}
@@ -438,7 +438,7 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					decode_entities($text);
+					#decode_entities($text);
 					
 					$start = 0;
 				}
@@ -471,7 +471,7 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					decode_entities($text);
+					#decode_entities($text);
 					
 					$start = 0;
 				}
@@ -546,7 +546,7 @@ sub fill_undo_stack {
 			my $insert_content_plain = $insert_content;
 			$insert_content_plain = pEFL::Elm::Entry::markup_to_utf8($insert_content);
 			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
-			decode_entities($insert_content_plain);
+			#decode_entities($insert_content_plain);
 			#my $new_plain_length = $change->{insert}->{plain_length};
 			$new_plain_length = length($insert_content_plain);
 			
@@ -638,8 +638,8 @@ sub undo {
 	
 	my $current_tab = $self->app->current_tab();
 	
-	#use Data::Dumper;
-	#print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
+	use Data::Dumper;
+	print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
 	
 	my $undo = pop @{$current_tab->undo_stack};
 	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
@@ -653,8 +653,10 @@ sub undo {
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes"); is not needed
 		$entry->cursor_pos_set($undo->{start});
-		$undo->{content} =~ s/\t/<tab\/>/g; $undo->{content} =~ s/\n/<br\/>/g;
-		$entry->entry_insert($undo->{content});
+		my $content = $undo->{content};
+		$content = pEFL::Elm::Entry::utf8_to_markup($content);
+		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
+		$entry->entry_insert($content);
 		$entry->select_none();
 		$self->rehighlight_and_retab_lines($undo);
 		$entry->cursor_pos_set($undo->{end});
@@ -678,8 +680,8 @@ sub redo {
 	my $entry = $self->elm_entry();
 	my $current_tab = $self->app->current_tab();
 	
-	#use Data::Dumper;
-	#print "\n DO REDO " . Dumper($current_tab->redo_stack) . "\n";
+	use Data::Dumper;
+	print "\n DO REDO " . Dumper($current_tab->redo_stack) . "\n";
 	
 	my $redo = pop @{$current_tab->redo_stack};
 	return unless( defined($redo) );
@@ -696,7 +698,7 @@ sub redo {
 		# and perhaps https://github.com/MaxPerl/eSourceHighlight/issues/2 ?
 		my $content_plain = pEFL::Elm::Entry::markup_to_utf8($redo->{content});
 		$content_plain = Encode::decode("UTF-8",$content_plain); 
-		decode_entities($content_plain);
+		#decode_entities($content_plain);
 		my $length = length($content_plain);
 		
 		$entry->select_region_set($redo->{start},$redo->{start} + $length);
@@ -709,9 +711,11 @@ sub redo {
 		# therefore here $self->is_undo("yes") is not needed 
 		#my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);
 		#$entry->cursor_pos_set($redo->{pos}-length($text));
-		$redo->{content} =~ s/\t/<tab\/>/g; $redo->{content} =~ s/\n/<br\/>/g;
+		my $content = $redo->{content};
+		$content = pEFL::Elm::Entry::markup_to_utf8($content);
+		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->cursor_pos_set($redo->{pos});
-		$entry->entry_insert($redo->{content});
+		$entry->entry_insert($content);
 		$self->rehighlight_and_retab_lines($redo); #, $redo;??
 		$entry->cursor_pos_set($redo->{pos} + $redo->{plain_length});
 	}
