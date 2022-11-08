@@ -171,7 +171,7 @@ sub add_menu {
 	
 	my $file_it = $menu->item_add(undef,undef,"File",undef, undef);
 	
-	$menu->item_add($file_it,"document-new","New",\&_new_tab_cb,$self->tabs());
+	$menu->item_add($file_it,"document-new","New",sub {$self->tabs->_new_tab_cb},undef);
 	$menu->item_add($file_it,"document-open","Open",\&_open_cb,$self);
 	$menu->item_add($file_it,"document-save","Save",\&save,$self);
 	$menu->item_add($file_it,"document-save-as","Save as",\&save_as,$self);
@@ -304,7 +304,7 @@ sub key_down {
 	my $modifiers = $e->modifiers();
 	
 	if ($modifiers == 2 && $keyname eq "n") {
-		_new_tab_cb($self->tabs());
+		$self->tabs->_new_tab_cb();
 	}
 	elsif ($modifiers == 2 && $keyname eq "o") {
 		_open_cb($self);
