@@ -1,7 +1,7 @@
 eSourceHighlight version 0.01
 =============================
 
-A simple text editor for not to heavy files developed with Perl/pEFL.
+A simple text editor (frontend to the gnu source-highlight library) for not to heavy files developed with Perl/pEFL.
 
 INSTALLATION
 
