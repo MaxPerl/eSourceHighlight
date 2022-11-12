@@ -32,4 +32,5 @@ This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.32.1 or,
 at your option, any later version of Perl 5 you may have available.
 
-
+eSourceHighlight is in a very early development state. So use it at
+your own risk!!!
