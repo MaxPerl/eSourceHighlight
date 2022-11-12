@@ -11,9 +11,6 @@ use pEFL;
 use pEFL::Elm;
 use pEFL::Evas;
 use pEFL::Ecore;
-use pEFL::Ecore::EventHandler;
-use pEFL::Ecore::Event::Key;
-use pEFL::Elm::Config;
 
 use File::ShareDir 'dist_dir';
 
@@ -554,10 +551,6 @@ sub open_file {
 		open my $fh, "<:encoding(utf-8)", $selected;
 		my $content=""; my $line;
 		while (my $line=<$fh>) {
-		
-			# harmonize tabs
-		#	my $match = "([^\t]+)\t";
-		#	$line =~ s!$match!resize_tab($1,$self->entry())!ge;
 			$content = $content . $line;
 		}
 	
@@ -596,7 +589,6 @@ sub open_file {
 		# This seems to be already done by pEFL::Elm::Entry::utf8_to_markup
 		#$content =~ s/\t/<tab\/>/g;
 		#$content =~ s/\n/<br\/>/g;
-		#print "CONTENT\n\n$content\n\n";
 		$en->entry_set($content);
 
 		# Determ the input language 

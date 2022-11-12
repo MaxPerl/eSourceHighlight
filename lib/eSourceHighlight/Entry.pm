@@ -98,7 +98,6 @@ sub init_entry {
 	
 	$en->markup_filter_append(\&tabs_to_whitespaces, $self);
 	
-	#$en->smart_callback_add("selection,paste" => \&on_paste, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	#$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
@@ -155,10 +154,6 @@ sub on_key_down {
 	
 	$self->line_column_get($evas, $en, $e);
 	
-	#if ($modifiers == 2 && $keyname eq "v") {
-		#_remove_match_braces($en->textblock_get());
-	#}
-	#elsif ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 	if ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 		$self->highlight_match_braces();
 	}
@@ -322,7 +317,7 @@ sub highlight_match_braces {
 		$cp1->paragraph_char_first();
 		my $text = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
-		#decode_entities($text);
+		
 		my $start = $cp2->pos_get() - $cp1->pos_get();
 		
 		while (1) {
@@ -335,7 +330,6 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
-				#decode_entities($text);
 				
 				
 				$start = length($text);
@@ -347,7 +341,6 @@ sub highlight_match_braces {
 					$cp1->paragraph_prev(); 
 					$text = $cp1->paragraph_text_get(); $cp1->paragraph_char_first();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
-					#decode_entities($text);
 					
 					#$text = Encode::decode("UTF-8",$text);
 					
@@ -359,11 +352,10 @@ sub highlight_match_braces {
 				$start = $match_pos-1;
 				# problem: If match_pos == -1, then the loop never stops
 				if ($start == -1) {
-					$cp1->paragraph_prev(); 
+					$cp1->paragraph_prev();
 					$text = $cp1->paragraph_text_get();$cp1->paragraph_char_first();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					#decode_entities($text);
 					
 					
 					$start = length($text);
@@ -413,7 +405,7 @@ sub highlight_match_braces {
 		$cp1->line_char_last();  
 		my $text = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_PLAIN);
 		$text = Encode::decode("UTF-8",$text);
-		#decode_entities($text);
+		
 		my $found = undef; my $start = 0;
 		$cp1->pos_set($cp2->pos_get());
 		
@@ -426,7 +418,7 @@ sub highlight_match_braces {
 				$text = $cp1->paragraph_text_get();
 				$text = pEFL::Elm::Entry::markup_to_utf8($text);
 				$text = Encode::decode("UTF-8",$text);
-				#decode_entities($text);
+				
 				
 				$start = 0;
 			}
@@ -438,7 +430,7 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					#decode_entities($text);
+					
 					
 					$start = 0;
 				}
@@ -471,7 +463,7 @@ sub highlight_match_braces {
 					$text = $cp1->paragraph_text_get();
 					$text = pEFL::Elm::Entry::markup_to_utf8($text);
 					$text = Encode::decode("UTF-8",$text);
-					#decode_entities($text);
+					
 					
 					$start = 0;
 				}
@@ -546,8 +538,6 @@ sub fill_undo_stack {
 			my $insert_content_plain = $insert_content;
 			$insert_content_plain = pEFL::Elm::Entry::markup_to_utf8($insert_content);
 			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
-			#decode_entities($insert_content_plain);
-			#my $new_plain_length = $change->{insert}->{plain_length};
 			$new_plain_length = length($insert_content_plain);
 			
 			
@@ -638,8 +628,8 @@ sub undo {
 	
 	my $current_tab = $self->app->current_tab();
 	
-	use Data::Dumper;
-	print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
+	#use Data::Dumper;
+	#print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
 	
 	my $undo = pop @{$current_tab->undo_stack};
 	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
@@ -680,8 +670,8 @@ sub redo {
 	my $entry = $self->elm_entry();
 	my $current_tab = $self->app->current_tab();
 	
-	use Data::Dumper;
-	print "\n DO REDO " . Dumper($current_tab->redo_stack) . "\n";
+	#use Data::Dumper;
+	#print "\n DO REDO " . Dumper($current_tab->redo_stack) . "\n";
 	
 	my $redo = pop @{$current_tab->redo_stack};
 	return unless( defined($redo) );
@@ -698,7 +688,7 @@ sub redo {
 		# and perhaps https://github.com/MaxPerl/eSourceHighlight/issues/2 ?
 		my $content_plain = pEFL::Elm::Entry::markup_to_utf8($redo->{content});
 		$content_plain = Encode::decode("UTF-8",$content_plain); 
-		#decode_entities($content_plain);
+		
 		my $length = length($content_plain);
 		
 		$entry->select_region_set($redo->{start},$redo->{start} + $length);
@@ -709,8 +699,7 @@ sub redo {
 		# It seems that if one inserts withous selection
 		# the event changed,user is not triggered
 		# therefore here $self->is_undo("yes") is not needed 
-		#my $text = $redo->{content}; #$text = pEFL::Elm::Entry::markup_to_utf8($text); decode_entities($text);
-		#$entry->cursor_pos_set($redo->{pos}-length($text));
+		
 		my $content = $redo->{content};
 		$content = pEFL::Elm::Entry::markup_to_utf8($content);
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
@@ -790,21 +779,8 @@ sub auto_indent {
 		}
 	}
 	
-	# For Debugging undo feature
-	#if ($self->is_undo eq "no") {
-		#print "UNDO " . $self->is_undo() . "\n";
-		#print "REHIGHLIGHT " . $self->is_rehighlight() . "\n";
-		#use Data::Dumper;
-		#print Dumper(@{$current_tab->undo_stack});
-	#}
 	$cp1->free();
 	return $new_cp;
-}
-
-sub on_paste {
-	my ($self) = @_;
-	#print "Set rehighlight yes on paste event\n";
-	$self->rehighlight("yes");
 }
 
 sub resize_tab_re {
@@ -825,7 +801,6 @@ sub resize_tab_re {
 	# print "STR $utf8 L $l N $n\n"; 
 	$n = $n*$entry->em();
 	
-	# print "TABS $n\n";
 	return "$string<tabstops=$n>"
 }
 
@@ -849,7 +824,6 @@ sub resize_tabs {
 	my $i;
 	for ($i=0; $i <= $#lines; $i++) {
 			my $line  = $lines[$i];
-			#$line = unexpand($line);
 		
 			# harmonize tabs
 			my $match = "([^\t]+)\t";
@@ -934,18 +908,12 @@ sub tabs_to_whitespaces {
 sub highlight_str {
 	my $self = shift; my $text = shift;
 	
-	# $entry->selection_get gets the text in markup format!!!
-	# Therefore convert it to utf8
-	#$text = pEFL::Elm::Entry::markup_to_utf8($text);
-	#$text = Encode::decode("UTF-8",$text);
-	
 	# Here we mustn't decode entities!!!!
 	# Otherwise one can not input something like "<"
 	# I hope this doesn't brings new problems :-S
 	# but ö should no problem in entry....
 	#decode_entities($text);
 	
-	#print "Set rehighlight no in highlight_str\n";
 	$self->rehighlight("no");
 	
 	# Check whether there is a $sh_lang for the document
@@ -955,7 +923,6 @@ sub highlight_str {
 	
 	
 	if (defined($sh_lang) && $sh_lang =~ m/\.lang$/) {
-		#decode_entities($text);
 		$text = $sh_obj->highlightString($text,$sh_lang);
 	}
 	elsif (defined($sh_lang)) {
@@ -966,15 +933,6 @@ sub highlight_str {
 	else {
 		encode_entities($text,"<>&");
 	}
-	
-	######################
-	# resize tabs
-	#######################
-	
-	#$text = $self->resize_tabs($text) if ($text);
-	#$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
-	#$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
-	#$str =~ s/&/&/g;$text =~ s/</</g;$text =~ s/>/>/g;
 	
 	return $text;
 }
@@ -1023,16 +981,9 @@ sub rehighlight_all {
 
 # $undo ist the item of the undo stack
 sub get_rehighlight_lines {
-	#my ($self, $entry, $undo) = @_;
 	my ($self, $cp1, $cp2, $undo) = @_;
 	
-	# Check whether there is a $sh_lang for the document
-	#my $sh_lang = $self->app->current_tab->sh_lang(); 
-	#return unless (defined($sh_lang));
 	
-	#my $textblock = $entry->textblock_get();
-	#my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
-	#my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	if (defined($undo)) {
 		if ($undo->{del}) {
 			# if there is a del event then we relight from the line before 
@@ -1067,7 +1018,7 @@ sub get_rehighlight_lines {
 		$cp2->paragraph_next;
 		$cp2->line_char_last;
 	}
-	#my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_MARKUP);
+
 	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 	$text = Encode::decode("UTF-8",$text);
 	
@@ -1149,7 +1100,7 @@ sub to_utf8 {
 	
 	# We must encode the HTML entities.
 	# Otherwise everything inside <.*> is deleted when entry is
-	# set. Here it is about output of perl!!!
+	# set. Here it is about output of perl to Elm_Entry widget!!!
 	encode_entities($text);
 	
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
