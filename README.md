@@ -10,11 +10,8 @@ A simple text editor (frontend to the gnu source-highlight library) for not to h
 To install this module type the following:
 
    perl Makefile.PL
-   
    make
-   
    make test
-   
    make install
 
 # DEPENDENCIES
