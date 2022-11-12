@@ -20,11 +20,9 @@ To install this module type the following:
 
 This module requires these other modules and libraries:
 
-  Syntax::SourceHighlight
-  
-  pEFL
-  
-  File::HomeDir
+  - Syntax::SourceHighlight
+  - pEFL
+  - File::HomeDir
 
 # COPYRIGHT AND LICENCE
 
