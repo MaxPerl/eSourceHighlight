@@ -1,9 +1,9 @@
 eSourceHighlight
 ================
 
-![Screenshot to eSourceHighlight](https://github.com/MaxPerl/eSourceHighlight/raw/main/screenshot.jpg "Screenshot to eSourceHighlight")
-
 A simple text editor (frontend to the gnu source-highlight library) for not to heavy files developed with Perl/pEFL.
+
+![Screenshot to eSourceHighlight](https://github.com/MaxPerl/eSourceHighlight/raw/main/screenshot.jpg "Screenshot to eSourceHighlight")
 
 # INSTALLATION
 
