@@ -17,7 +17,6 @@ use File::ShareDir 'dist_dir';
 use File::HomeDir;
 use File::Basename;
 use Cwd qw(abs_path getcwd);
-use HTML::Entities qw(decode_entities);
 
 use eSourceHighlight::Tab;
 use eSourceHighlight::Tabs;
@@ -332,7 +331,6 @@ sub key_down {
 		my $text = $entry->selection_get();
 		$text = pEFL::Elm::Entry::markup_to_utf8($text);
 		$text = Encode::decode("UTF-8",$text);
-		decode_entities($text);
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
@@ -355,7 +353,7 @@ sub key_down {
 		my $text = $entry->selection_get();
 		$text = pEFL::Elm::Entry::markup_to_utf8($text);
 		$text = Encode::decode("UTF-8",$text);
-		decode_entities($text);
+		
 		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
