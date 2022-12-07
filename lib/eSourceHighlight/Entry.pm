@@ -1206,22 +1206,17 @@ sub line_get {
 	my ($self) = @_;
 	
 	my $en = $self->elm_entry();
-	my $lines;
+	my $lines = 1;
 	
 	my $textblock = $en->textblock_get();
 	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->pos_set($en->cursor_pos_get);
-	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
-	$cp2->pos_set(0);
-	my $text_before = $textblock->range_text_get($cp2,$cp1,EVAS_TEXTBLOCK_TEXT_MARKUP);
-		
-	$lines = $text_before =~ s/<br\/>/$&/g; 
-	if ($lines ==0 ) {
-		$lines = 1; 
-	} 
-	else { 
-		$lines = $lines + 1;
+	
+	while ($cp1->paragraph_prev()) {
+		$lines++;
 	}
+	
+	$cp1->free();
 		
 	return $lines;
 }
