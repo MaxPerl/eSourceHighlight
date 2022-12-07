@@ -16,6 +16,8 @@ use Syntax::SourceHighlight;
 use HTML::Entities;
 use Encode;
 
+use File::HomeDir;
+
 use Text::Tabs;
 
 our @ISA = qw(Exporter);
@@ -58,6 +60,7 @@ sub new {
 sub init_entry {
 	my ($self,$app,$box) = @_;
 	
+	
 	my $config = $app->settings->load_config();
 	$self->tabmode("whitespaces") if ($config->{tabmode} eq "Add whitespace");
 	
@@ -69,7 +72,11 @@ sub init_entry {
 	
 	my $lm = Syntax::SourceHighlight::LangMap->new(); $self->sh_langmap($lm);
 	
+	my $edj_path = File::HomeDir->my_home . "/.esource-highlight/custom.edj";
+	pEFL::Elm::Theme::overlay_add($edj_path);
+	
 	my $en = pEFL::Elm::Entry->add($box);
+	$en->style_set("custom");
 	$en->scrollable_set(1);
 	$en->autosave_set(0);
 	
@@ -98,13 +105,11 @@ sub init_entry {
 	
 	$en->markup_filter_append(\&tabs_to_whitespaces, $self);
 	
-	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_down, $self);
+	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
 	#$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
-	
-	
 	
 	$box->pack_end($en);
 	$en->show();
@@ -148,15 +153,18 @@ sub paste_selection {
 sub on_key_down {
 	my ($self, $evas, $en, $event) = @_;
 	
-	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
+	my $e = pEFL::ev_info2obj($event, "pEFL::Evas::Event::KeyDown");
+	my $mod = $e->modifiers();
 	my $keyname = $e->keyname();
-	my $modifiers = $e->modifiers();
+	
 	
 	$self->line_column_get($evas, $en, $e);
 	
 	if ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 		$self->highlight_match_braces();
 	}
+	
+	#tab_selection($self, $en) if ($keyname eq "Tab" && $mod->key_modifier_is_set("Control"));
 }
 
 # TODO: Move to eSourceHighlight::Tab
@@ -180,6 +188,25 @@ sub determ_source_lang {
 	return;
 }
 
+# Problem: 1) We wan't content always be plain utf8! 
+# 2) In $change->{insert}->{plain_length} are \n = <br/>,
+# Tabs = <tab/> and umlauts &ouml;. Therefore the length is longer than utf8
+# with the following we correct plain length
+sub _correct_change {
+	my ($change_info, $change) = @_;
+	
+	if ($change_info->insert()) {
+		$change->{insert}->{content} = pEFL::Elm::Entry::markup_to_utf8($change->{insert}->{content});
+		$change->{insert}->{content} = Encode::decode("UTF-8",$change->{insert}->{content}); 
+		$change->{insert}->{plain_length} = length($change->{insert}->{content});
+	}
+	else {	
+		$change->{del}->{content} = pEFL::Elm::Entry::markup_to_utf8($change->{del}->{content});
+		$change->{del}->{content} = Encode::decode("UTF-8",$change->{del}->{content});
+	}
+	
+	return $change;
+}
 
 sub changed {
 	my ($self, $entry, $ev) = @_;
@@ -191,6 +218,7 @@ sub changed {
 	my $change_info = pEFL::ev_info2obj($ev,"pEFL::Elm::EntryChangeInfo");
 	
 	my $change = $change_info->change();
+	$change = _correct_change($change_info, $change);
 	
 	my $cpos = $entry->cursor_pos_get();
 	
@@ -208,7 +236,7 @@ sub changed {
 	########################
 	# Fill undo stack
 	########################
-	my $new_undo = $self->fill_undo_stack($change_info);
+	my $new_undo = $self->fill_undo_stack($change_info, $change);
 	
 	
 	###########################
@@ -243,6 +271,7 @@ sub changed {
 	$text =~ s/\n/<br\/>/g; $text =~ s/\t/<tab\/>/g;
 	
 	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$text);
+	$entry->calc_force;
 	
 	$cp1->free();
 	$cp2->free();
@@ -500,10 +529,10 @@ sub text_set_done {
 # Fill undo stack
 ########################
 sub fill_undo_stack {
-	my ($self, $change_info) = @_;
+	my ($self, $change_info, $change) = @_;
 	
 	my $current_tab = $self->app->current_tab();
-	my $change = $change_info->change();
+
 	#use Data::Dumper;
 	#print "CHANGE " . Dumper($change) . "\n";
 	my @undo_stack = @{$current_tab->undo_stack};
@@ -532,22 +561,22 @@ sub fill_undo_stack {
 			my $prev_content = $last_undo->{content} || "";
 			
 			my $new_pos = $change->{insert}->{pos};
-			my $insert_content = $change->{insert}->{content};
+			#my $insert_content = $change->{insert}->{content};
+			
+			# Problem: In $change->{insert}->{plain_length} are \n = <br/>,
+			# Tabs = <tab/> and umlauts &ouml;. Therefore the length is longer than utf8
+			# with the following we correct plain length
 			my $new_plain_length;
-			
-			my $insert_content_plain = $insert_content;
-			$insert_content_plain = pEFL::Elm::Entry::markup_to_utf8($insert_content);
-			$insert_content_plain = Encode::decode("UTF-8",$insert_content_plain); 
-			$new_plain_length = length($insert_content_plain);
-			
+			my $insert_content_plain = $change->{insert}->{content};
+			$new_plain_length = $change->{insert}->{plain_length};
 			
 			# Special case: <tab/> was replaced by filter
 			# Undo record is already created 
-			if ($insert_content eq "<tab\/>" && $self->tabmode() eq "whitespaces" && $last_undo->{replaced_tab}) {
+			if ($insert_content_plain eq "\t" && $self->tabmode() eq "whitespaces" && $last_undo->{replaced_tab}) {
 				
 			}
 			# Make a new undo record, only if a new word starts, a tab is inserted or a newline
-			elsif ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content_plain =~ m/\S/ && $insert_content ne "<br/>" && $insert_content ne "<tab/>" ) {
+			elsif ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content_plain =~ m/\S/ && $insert_content_plain ne "\n" && $insert_content_plain ne "\t" ) {
 				pop @{$current_tab->undo_stack};
 				$new_undo->{pos} = $prev_pos;
 				
@@ -580,11 +609,7 @@ sub fill_undo_stack {
 				$start = $end;
 				$end = $tmp;
 			}
-			my $content = $change->{del}->{content};
-			
-			my $content_plain = $content;
-			$content_plain = pEFL::Elm::Entry::markup_to_utf8($content);
-			$content_plain = Encode::decode("UTF-8",$content_plain); 
+			my $content_plain = $change->{del}->{content};
 			
 			# BackSlash key is pressed
 			if ($last_undo->{del} && $prev_start == ($start +1) ) {
@@ -762,6 +787,7 @@ sub auto_indent {
 			if ($tabs) {
 				$cp1->pos_set($cursor_pos);
 				$cp1->text_markup_prepend($tabs) ;
+				$entry->calc_force();
 				
 				# Because there is no selection (?) the "change, MANUAL" event 
 				# isn't triggered. Therefore we must push the undo stack manually
@@ -901,6 +927,52 @@ sub tabs_to_whitespaces {
 	}
 	
 	return $text;
+}
+
+sub tab_selection {
+	my ($entry, $en) = @_;
+	
+		my ($start,$end) = $en->select_region_get();
+		return unless($start && $end);
+		
+		my $textblock = $en->textblock_get();
+		my $cp1 = pEFL::Evas::TextblockCursor->new($textblock); 
+		my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+		
+		$cp1->pos_set($start); 
+		$cp1->paragraph_char_first();
+		$cp2->pos_set($end);
+		
+		my $line = $textblock->range_text_get($cp1,$cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
+		$line = Encode::decode("UTF-8",$line);
+		
+		my $text = "";
+		foreach my $line (split($line,"\n")) {
+		    $text = "\t".$line."\n";
+		}
+		
+		$cp1->free(); $cp2->free();
+		
+		# Unfortunately the filter doesn't change the ChangeInfo
+		# Therefore we create here the undo record and push it to 
+		# the undo stack
+		my $replaced_undo1 = {
+			start => $start,
+			end => $end,
+			content => $line,
+			del => 1
+		};
+		
+		my $replaced_undo2 = {
+			content => $text,
+			plain_length => length($text),
+			pos => $start,
+			replaced_tab => 1,
+		};
+		
+		my $current_tab = $entry->app->current_tab();
+		push @{$current_tab->undo_stack}, $replaced_undo1;
+		push @{$current_tab->undo_stack}, $replaced_undo2;
 }
 
 
@@ -1073,6 +1145,7 @@ sub rehighlight_and_retab_lines {
 	$mkp_text =~ s/\n/<br\/>/g;$mkp_text =~ s/\t/<tab\/>/g;
 	
 	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$mkp_text);
+	$entry->calc_force;
 	
 	$cp1->free();
 	$cp2->free();

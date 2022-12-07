@@ -57,6 +57,22 @@ sub new {
 	my ($class) = @_;
 	our $share = dist_dir('eSourceHighlight');
 	
+	##########################
+	# First Setup
+	##########################
+	my $userdir = File::HomeDir->my_home . "/.esource-highlight";
+	
+	unless (-e $userdir) {
+		make_path $userdir or die "Could not create $userdir: $!";
+	}
+	
+	my $edj_path = "$userdir/custom.edj";
+	unless (-e $edj_path) {
+		print "Compile custom.edc\n";
+		system("edje_cc","$share/custom.edc",$edj_path) == 0 or
+			die "Could not compile custom.edc: $?\n";
+	}
+	
 	my $obj = {
 		tabs => undef,
 		entry => undef,
