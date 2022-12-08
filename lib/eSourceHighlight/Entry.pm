@@ -653,8 +653,8 @@ sub undo {
 	
 	my $current_tab = $self->app->current_tab();
 	
-	#use Data::Dumper;
-	#print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
+	use Data::Dumper;
+	print "\n DO UNDO " . Dumper($current_tab->undo_stack) . "\n";
 	
 	my $undo = pop @{$current_tab->undo_stack};
 	# print "CURSOR " . $entry->cursor_pos_get() . "\n";
@@ -669,7 +669,10 @@ sub undo {
 		# therefore here $self->is_undo("yes"); is not needed
 		$entry->cursor_pos_set($undo->{start});
 		my $content = $undo->{content};
-		$content = pEFL::Elm::Entry::utf8_to_markup($content);
+		
+		# $undo->{content} is already saved in utf8 format!!!
+		# $content = pEFL::Elm::Entry::utf8_to_markup($content);
+		
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->entry_insert($content);
 		$entry->select_none();
@@ -726,7 +729,10 @@ sub redo {
 		# therefore here $self->is_undo("yes") is not needed 
 		
 		my $content = $redo->{content};
-		$content = pEFL::Elm::Entry::markup_to_utf8($content);
+		
+		# $redo->{content} is already saved in utf8 format!!!
+		# $content = pEFL::Elm::Entry::markup_to_utf8($content);
+		
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->cursor_pos_set($redo->{pos});
 		$entry->entry_insert($content);
