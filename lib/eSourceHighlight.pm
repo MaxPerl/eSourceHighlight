@@ -235,7 +235,7 @@ sub add_menu {
 	my $rehighlight_format_it = $menu->item_add($doc_it,undef,"Rehighlight all",sub {$self->entry->rehighlight_all()},$self);
 	
 	# Keyboard shortcuts
-	pEFL::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
+	my $ev = pEFL::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
 }
 
 sub set_src_format {
@@ -311,6 +311,7 @@ sub src_genlist_text_get {
 
 sub key_down {
 	my ($self, $type, $event) = @_;
+	
 	my $e = pEFL::ev_info2obj($event, "pEFL::Ecore::Event::Key");
 	my $keyname = $e->keyname();
 	my $modifiers = $e->modifiers();
@@ -384,6 +385,9 @@ sub key_down {
 			}
 		}
 	}
+	pEFL::Ecore::Event::type_flush_internal(ECORE_EVENT_KEY_DOWN, ECORE_EVENT_NONE);
+	
+	return ECORE_CALLBACK_DONE;
 } 
 
 sub on_exit {
