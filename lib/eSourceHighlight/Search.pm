@@ -312,10 +312,26 @@ sub replace_clicked {
 	my $rtext = pEFL::Elm::Entry::markup_to_utf8($rtext_markup);
 	
 	my $selected_text = $en->selection_get() || "";
+	my ($pos,$end) = $en->select_region_get();
 	$selected_text = pEFL::Elm::Entry::markup_to_utf8($selected_text);
 	
 	if ($stext eq $selected_text) {
 		$en->entry_insert($rtext);
+		
+		# we have to add 2 undo records manually, because it doesn't work automatically
+		$entry->undo_already_done("yes");
+		my $undo_record_del = {};
+		$undo_record_del->{del} = 1;
+		$undo_record_del->{start} = $pos;
+		$undo_record_del->{end} = $end;
+		$undo_record_del->{content} = $selected_text;
+		$undo_record_del->{plain_length} = length($selected_text);
+		push @{$self->app->current_tab->undo_stack},$undo_record_del;
+		my $undo_record_insert = {};
+		$undo_record_insert->{pos} = $pos;
+		$undo_record_insert->{content} = $rtext;
+		$undo_record_insert->{plain_length} = length($rtext);
+		push @{$self->app->current_tab->undo_stack},$undo_record_insert;
 		$en->select_none();
 		$self->clear_search_results();
 		$self->do_search($entry);

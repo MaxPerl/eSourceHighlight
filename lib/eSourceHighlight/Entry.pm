@@ -3,6 +3,7 @@ use 5.006001;
 use strict;
 use warnings;
 use utf8;
+use Time::HiRes qw(time);
 
 require Exporter;
 
@@ -15,8 +16,7 @@ use pEFL::Evas;
 use Syntax::SourceHighlight;
 use HTML::Entities;
 use Encode;
-
-use File::HomeDir;
+use Convert::Color;
 
 use Text::Tabs;
 
@@ -51,6 +51,7 @@ sub new {
 		em => undef,
 		elm_entry => undef,
 		undo_processing => 0,
+		unod_already_done => "no",
 		};
 	
 	bless($obj,$class);
@@ -92,7 +93,7 @@ sub init_entry {
 	$self->elm_entry($en);
 	
 	my $textblock = $en->textblock_get();
-	$textblock->legacy_newline_set(1);
+	#$textblock->legacy_newline_set(1);
 	
 	my $font = $config->{font} || "Monospace";
 	my $font_size = $config->{font_size} || 10;
@@ -100,14 +101,21 @@ sub init_entry {
 	my $w = $self->_calc_em($user_style);
 	
 	my $tabs = $w * 4;
-	
-	$user_style = "DEFAULT='font=$font:style=Regular font_size=$font_size tabstops=$tabs'";
+	my $fcolor = "";
+	if ($config->{font_color}) {
+		my $c = Convert::Color->new("rgb8:" . join(",",@{$config->{font_color}})); 
+		$fcolor = " color=#".$c->hex;
+	}
+
+	$user_style = "DEFAULT='font=$font:style=Regular font_size=$font_size tabstops=$tabs$fcolor'";
 	$en->text_style_user_push($user_style);
 	
 	$en->markup_filter_append(\&tabs_to_whitespaces, $self);
 	
 	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&on_key_down, $self);
-	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&line_column_get_mouse, $self);
+	# We make a MOUSE_DOWN event here because with MOUSE UP you cannot select with mouse anymore
+	# TODO: match brackets doesn't work anymore with MOUSE_DOWN. Do a seperate MOUSE_UP for this?
+	$en->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN, \&line_column_get_mouse, $self);
 	#$en->smart_callback_add("selection,paste" => \&paste_selection, $self);
 	$en->smart_callback_add("changed,user" => \&changed, $self);
 	$en->smart_callback_add("text,set,done" => \&text_set_done, $self);
@@ -117,6 +125,7 @@ sub init_entry {
 	
 	$self->app->entry($self);
 }
+
 
 sub _calc_em {
 	my ($self, $user_style) = @_;
@@ -166,6 +175,10 @@ sub on_key_down {
 	}
 	
 	#tab_selection($self, $en) if ($keyname eq "Tab" && $mod->key_modifier_is_set("Control"));
+	
+	if ($keyname =~ m/Up|Down|Return/ && $self->app->current_tab->source_highlight() eq "yes" ) {
+		rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
+	}
 }
 
 # TODO: Move to eSourceHighlight::Tab
@@ -255,21 +268,25 @@ sub changed {
 	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp2->pos_set($entry->cursor_pos_get());
 	
-	my $text = $self->get_rehighlight_lines($cp1,$cp2, $new_undo);
+	my $text = $self->get_rehighlight_lines($cp1,$cp2);
 	
 	if ( $current_tab->source_highlight() eq "yes" ) {
 		$text = $self->highlight_str($text);
 	}
 	
+	
 	#########################
 	# resize and format tabs / format newlines
 	########################
 	#unless ($self->tabmode() eq "whitespaces") {
+	if ($text =~ /\t/) {
 		$text = $self->resize_tabs($text) if ($text);
 		$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+		$text =~ s/\t/<tab\/>/g;
+	}
 	#}
 	
-	$text =~ s/\n/<br\/>/g; $text =~ s/\t/<tab\/>/g;
+	$text =~ s/\n/<br\/>/g; 
 	
 	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$text);
 	$entry->calc_force;
@@ -289,6 +306,49 @@ sub changed {
 	$self->get_line_on_del($change_info);
 	
 	$cpos = $new_cp ? $new_cp : $cpos;
+	$entry->cursor_pos_set($cpos);
+}
+
+sub rehighlight_visible_range {
+	my ($self) = @_;
+	
+	my $entry = $self->elm_entry();
+	my $cpos = $entry->cursor_pos_get();
+
+	##########################
+	# Source highlight
+	#########################
+	my $textblock = $entry->textblock_get();
+	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
+	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
+	$cp1->visible_range_get($cp2);
+	
+	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
+	$text = Encode::decode("UTF-8",$text);
+	
+	if ( $self->app->current_tab()->source_highlight() eq "yes" ) {
+		$text = $self->highlight_str($text);
+	}
+	
+	
+	#########################
+	# resize and format tabs / format newlines
+	########################
+	#unless ($self->tabmode() eq "whitespaces") {
+	if ($text =~ /\t/) {
+		$text = $self->resize_tabs($text) if ($text);
+		$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+		$text =~ s/\t/<tab\/>/g;
+	}
+	#}
+	
+	$text =~ s/\n/<br\/>/g; 
+	
+	$self->set_rehighlight_lines($textblock,$cp1,$cp2,$text);
+	$entry->calc_force;
+	$cp1->free();
+	$cp2->free();
+	
 	$entry->cursor_pos_set($cpos);
 }
 
@@ -547,6 +607,9 @@ sub fill_undo_stack {
 		# print "undo found $insert_content\n";
 		
 	}
+	elsif ($self->undo_already_done() eq "yes") {
+		$self->undo_already_done("no");
+	}
 	elsif ($self->is_rehighlight() eq "yes") {
 		$self->is_rehighlight("no");
 		#my $insert_content = $change->{insert}->{content};
@@ -562,8 +625,14 @@ sub fill_undo_stack {
 			my $prev_content = $last_undo->{content} || "";
 			
 			my $new_pos = $change->{insert}->{pos};
+			#my $insert_content = $change->{insert}->{content};
+			
+			# Problem: In $change->{insert}->{plain_length} are \n = <br/>,
+			# Tabs = <tab/> and umlauts &ouml;. Therefore the length is longer than utf8
+			# with the following we correct plain length
+			my $new_plain_length;
 			my $insert_content_plain = $change->{insert}->{content};
-			my $new_plain_length = $change->{insert}->{plain_length};
+			$new_plain_length = $change->{insert}->{plain_length};
 			
 			# Special case: <tab/> was replaced by filter
 			# Undo record is already created 
@@ -580,7 +649,7 @@ sub fill_undo_stack {
 			}
 			elsif (defined($insert_content_plain)) {
 				$new_undo->{pos} = $new_pos;
-				$new_undo->{content} = $insert_content_plain;
+				$new_undo->{content} = $insert_content_plain if (defined($insert_content_plain));
 				$new_undo->{plain_length} = $new_plain_length;
 				push @{$current_tab->undo_stack}, $new_undo;
 			}
@@ -635,9 +704,9 @@ sub fill_undo_stack {
 		}
 	}
 	
-	# use Data::Dumper;
-	# print "NEW UNDO " . Dumper($new_undo) . "\n\n";
-	# print "UNDO STACK" . Dumper(@{$current_tab->undo_stack}) . "\n\n";
+	#use Data::Dumper;
+	#print "NEW UNDO " . Dumper($new_undo) . "\n\n";
+	#print "UNDO STACK" . Dumper(@{$current_tab->undo_stack}) . "\n\n";
 	return $new_undo;
 }
 
@@ -669,8 +738,9 @@ sub undo {
 		$entry->cursor_pos_set($undo->{start});
 		my $content = $undo->{content};
 		
-		# $undo->{content} is already saved in utf8 format!!!
+		# $undo->{content} is already saved in utf8 format!!! Really???
 		# $content = pEFL::Elm::Entry::utf8_to_markup($content);
+		$content = pEFL::Elm::Entry::utf8_to_markup($content);
 		
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->entry_insert($content);
@@ -733,6 +803,7 @@ sub redo {
 		
 		# $redo->{content} is already saved in utf8 format!!!
 		# $content = pEFL::Elm::Entry::markup_to_utf8($content);
+		$content = pEFL::Elm::Entry::markup_to_utf8($content);
 		
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->cursor_pos_set($redo->{pos});
@@ -1045,9 +1116,10 @@ sub rehighlight_all {
 	# therefore check, whether there is a text
 	if ($text) {
 
-		$self->is_rehighlight("yes");
-		$entry->select_all();
-		$entry->entry_insert($text);
+		#$self->is_rehighlight("yes");
+		#$entry->select_all();
+		$entry->entry_set($text);
+		#$entry->entry_insert($text);
 	}
 	else {
 		$self->rehighlight("yes");
@@ -1074,6 +1146,7 @@ sub get_rehighlight_lines {
 			# .. to the line after the del event
 			$cp2->pos_set($undo->{end});
 			$cp2->paragraph_next;$cp2->paragraph_next;
+			# $cp2->paragraph_char_last;???? see under else...
 			$cp2->line_char_last;
 		}
 		else {
@@ -1084,20 +1157,22 @@ sub get_rehighlight_lines {
 			
 			$cp2->pos_set($undo->{pos}+$undo->{plain_length});
 			$cp2->paragraph_next;$cp2->paragraph_next;
+			# $cp2->paragraph_char_last;???? see under else...
 			$cp2->line_char_last;
 		}
 	}
 	else {
 		# Otherwise we relight from the line before the actual cursor position...
-		$cp1->paragraph_prev();
+		# !!!!!!! No, as in Editarea we rehighlight the visible range if cursor position changed
+		# Therefore it should be enough to relight only the current line!!!!!!!!!!!!!
+		#$cp1->paragraph_prev();
 		$cp1->paragraph_char_first;
 		
 		# .. to the line after the actual cursor position :-)
-		#$cp2->pos_set($entry->cursor_pos_get());
-		$cp2->paragraph_next;
-		$cp2->line_char_last;
+		#$cp2->paragraph_next;
+		$cp2->paragraph_char_last;
 	}
-
+	
 	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 	$text = Encode::decode("UTF-8",$text);
 	
@@ -1267,6 +1342,7 @@ sub line_column_get_mouse {
 	$column = $self->column_get();
 	
 	my $e = pEFL::ev_info2obj( $event, "pEFL::Evas::Event::MouseDown");
+	my $mod = $e->modifiers();
 	
 	my $button = $e->button();
 	if ($button == 1) {
@@ -1286,7 +1362,10 @@ sub line_column_get_mouse {
 		$text =~ s/(.*)Column:.*$/$1Column: $column/;
 		$label->text_set($text);
 	}
-
+	
+	if ($button == 1) {
+		$self->rehighlight_visible_range() if ($self->app->current_tab->source_highlight() eq "yes" && !$mod->key_modifier_is_set("Shift"));
+	}
 	
 }
 
@@ -1322,7 +1401,7 @@ sub AUTOLOAD {
 	my ($self, $newval) = @_;
 	
 	die("No method $AUTOLOAD implemented\n")
-		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|is_open|highlight|rehighlight|current_line|current_column|match_braces|match_braces_fmt|paste|linewrap|autoindent|search|tabmode|sh_obj|sh_langmap|em|elm_entry|undo_processing|/;
+		unless $AUTOLOAD =~m/is_undo|is_rehighlight|is_change_tab|is_open|highlight|rehighlight|current_line|current_column|match_braces|match_braces_fmt|paste|linewrap|autoindent|search|tabmode|sh_obj|sh_langmap|em|elm_entry|undo_processing|undo_already_done|/;
 	
 	my $attrib = $AUTOLOAD;
 	$attrib =~ s/.*://;
@@ -1356,35 +1435,15 @@ eSourceHighlight - Perl extension for blah blah blah
 
 =head1 DESCRIPTION
 
-Stub documentation for eSourceHighlight, created by h2xs. It looks like the
-author of the extension was negligent enough to leave the stub
-unedited.
-
-Blah blah blah.
-
-=head2 EXPORT
-
-None by default.
-
-
-=head1 SEE ALSO
-
-Mention other useful documentation such as the documentation of
-related modules or operating system documentation (such as man pages
-in UNIX), or any relevant external documentation such as RFCs or
-standards.
-
-If you have a mailing list set up for your module, mention it here.
-
-If you have a web site set up for your module, mention it here.
+This is the Editor component of the Caecilia Appliation.
 
 =head1 AUTHOR
 
-Maximilian, E<lt>maximilian@E<gt>
+Maximilian Lika, E<lt>maxperl@cpan.org<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2022 by Maximilian
+Copyright (C) 2022 by Maximilian Lika
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.32.1 or,
