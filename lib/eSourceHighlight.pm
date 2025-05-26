@@ -1,7 +1,5 @@
 package eSourceHighlight;
 
-use local::lib;
-
 use 5.006001;
 use strict;
 use warnings;
@@ -16,6 +14,7 @@ use File::ShareDir 'dist_dir';
 
 use File::HomeDir;
 use File::Basename;
+use File::Path qw(make_path);
 use Cwd qw(abs_path getcwd);
 
 use eSourceHighlight::Tab;
@@ -49,19 +48,19 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our $SELF;
 
 sub new {
-	my ($class) = @_;
+	my ($class, $open_file) = @_;
 	our $share = dist_dir('eSourceHighlight');
 	
 	##########################
 	# First Setup
 	##########################
 	my $userdir = File::HomeDir->my_home . "/.esource-highlight";
-	
+
 	unless (-e $userdir) {
 		make_path $userdir or die "Could not create $userdir: $!";
 	}
@@ -74,6 +73,7 @@ sub new {
 	}
 	
 	my $obj = {
+		open_file => $open_file,
 		tabs => undef,
 		entry => undef,
 		current_tab => 0,
@@ -123,6 +123,8 @@ sub init_ui {
 	$box->size_hint_align_set(EVAS_HINT_FILL,EVAS_HINT_FILL);
 	$win->resize_object_add($box);
 	$box->show();
+	
+	$self->add_toolbar($win,$box);
 	
 	my $tabs = eSourceHighlight::Tabs->new($self,$box);
 	$self->tabs($tabs);
@@ -236,6 +238,40 @@ sub add_menu {
 	
 	# Keyboard shortcuts
 	my $ev = pEFL::Ecore::EventHandler->add(ECORE_EVENT_KEY_DOWN, \&key_down, $self);
+}
+
+##################################
+# Toolbar
+##################################
+sub add_toolbar {
+	my ($self, $win, $box) = @_;
+	
+	my $f = pEFL::Elm::Frame->add($box);
+	$f->style_set("pad_small");
+	$f->size_hint_align_set(EVAS_HINT_FILL, 0);
+	$f->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
+	$f->show();$box->pack_end($f);
+	
+	my $toolbar = pEFL::Elm::Toolbar->add($f);
+	$toolbar->homogeneous_set(1);
+	$toolbar->select_mode_set(ELM_OBJECT_SELECT_MODE_DISPLAY_ONLY);
+	$toolbar->shrink_mode_set(ELM_TOOLBAR_SHRINK_MENU);
+	$toolbar->size_hint_align_set(EVAS_HINT_FILL, 0);
+	$toolbar->size_hint_weight_set(EVAS_HINT_EXPAND, 0);
+	$toolbar->align_set(0);
+	$toolbar->icon_size_set(14);
+	$f->content_set($toolbar);
+	
+	$toolbar->item_append("document-new","New",sub {$self->tabs->_new_tab_cb},undef);
+	$toolbar->item_append("document-open","Open",\&_open_cb,$self);
+	$toolbar->item_append("document-save","Save",\&save,$self);
+	$toolbar->item_append("document-save-as","Save as",\&save_as,$self);
+	my $it_sep = $toolbar->item_append(undef,undef,undef,undef);
+	$it_sep->separator_set(1);
+	$toolbar->item_append("preferences-other","Settings",sub {my $s = $self->settings(); $s->show_dialog($self)},undef);
+	
+	$self->elm_toolbar($toolbar);
+	$toolbar->show();
 }
 
 sub set_src_format {
@@ -463,7 +499,7 @@ sub about {
 	my ($self) = @_;
 	
 	my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
-	$popup->text_set("<b>eSourceHighlight</b><br/><br/>A simple frontend for the GNU source-highlight library written in Perl/pEFL");
+	$popup->text_set("<b>eSourceHighlight</b><br/><br/>A simple editor/frontend for the GNU source-highlight library <br/> for not too heavy files written in Perl/pEFL");
 	
 	# popup buttons
 	my $btn = pEFL::Elm::Button->add($popup);
