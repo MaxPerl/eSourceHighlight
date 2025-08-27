@@ -3,6 +3,7 @@ use 5.006001;
 use strict;
 use warnings;
 use utf8;
+use Time::HiRes qw(time);
 
 require Exporter;
 
@@ -172,6 +173,10 @@ sub on_key_up {
 	}
 	
 	#tab_selection($self, $en) if ($keyname eq "Tab" && $mod->key_modifier_is_set("Control"));
+	
+	if ($keyname =~ m/Up|Down|Return/ && $self->app->current_tab->source_highlight() eq "yes" ) {
+		rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
+	}
 }
 
 sub on_key_down {
