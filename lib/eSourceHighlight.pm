@@ -48,7 +48,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 our $SELF;
 
@@ -389,6 +389,17 @@ sub key_down {
 		$text = pEFL::Elm::Entry::markup_to_utf8($text);
 		$text = Encode::decode("UTF-8",$text);
 		
+		# IMPORTANT (EFL-Specific): elm_entry_insert|set ALWAYS expect valid Edje markup!
+		# This means: Unescaped '<' and '>' are incorrectly interpreted as HTML-like tags 
+		# by the internal EFL parser. Invalid tags (such as <name@>) will be silently 
+		# DELETED from the widget.
+		#
+		# NOTE: The `cnp_mode_set(PLAINTEXT)` setting DOES NOT apply here! It only filters 
+		# manual user actions (Ctrl+V). Programmatic API calls bypass this protection.
+		# Therefore, ALWAYS escape '&' to '&amp;', '<' to '&lt;' and '>' to '&gt;' before inserting!
+		$text =~ s/&/&amp;/g;
+		$text =~ s/</&lt;/g;$text =~ s/>/&gt;/g;
+		
 		if ($widget->visible_get()) {
 			$search->elm_entry->focus_set(1);
 			$search->elm_entry->entry_set($text) if ($text);
@@ -554,6 +565,11 @@ sub save {
 		# umlauts etc. must be converted
 		$content = Encode::decode("utf-8",$content);
 		
+		# Only for safety (I don't think, this is necessary):
+		# Entfernt alle Windows-Wagenrückläufe (Carriage Returns)
+		$content =~ s/\r//g; 
+
+		
 		# Here we mustn't decode entities
 		# otherwise for example &lt; is saved as <
 		#decode_entities($content);
@@ -607,12 +623,16 @@ sub open_file {
 		
 		# Open file
 		open my $fh, "<:encoding(utf-8)", $selected;
-		my $content=""; my $line;
+		my $content="";
 		while (my $line=<$fh>) {
 			$content = $content . $line;
 		}
 	
 		close $fh;
+		
+		# Only for safety (I don't think, this is necessary):
+		# Entfernt alle Windows-Wagenrückläufe (Carriage Returns)
+		$content =~ s/\r//g;
 		
 		if ($config->{expand_tabs}) {
 			$content = expand($content);	
@@ -621,7 +641,7 @@ sub open_file {
 			$content = unexpand($content);
 		}
 		
-		$content = pEFL::Elm::Entry::utf8_to_markup($content);
+		$content = pEFL::Elm::Entry::utf8_to_markup($content); 
 		
 		# Change the filename variable and/or open a new tab
 		my ($name,$dirs,$suffix) = fileparse($selected); 
