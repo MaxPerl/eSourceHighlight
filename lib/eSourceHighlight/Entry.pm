@@ -1127,14 +1127,17 @@ sub rehighlight_all {
 	$text = Encode::decode("UTF-8",$text);
 	
 	# Highlight whole text
-	# Important: Here entites ("<>&") are already encoded by GNU source-highlight
-	# lib (or manually). So we don't need to do this for entry_set() in this function
-	# again
 	$text = $self->highlight_str($text);
 	
-	# Resize Tabs (TODO: Own function)
+	# Resize Tabs
 	$text = $self->resize_tabs($text) if ($text);
 	$text = $self->highlight_resized_tabs($text, "<tabstops=(\\d*)>");
+	
+	# Important: entry_set or entry_insert always expect markup (i.e., <> and & must always 
+	# be escaped before we call these functions (see, for example, redo() or undo())
+	# But in highlight_str entites ("<>&") were already encoded by GNU source-highlight
+	# lib (or manually). So we don't need to do this later for entry_set() to encode "<>&"
+	# again ;-) Therefore here we mask only \n and \t created by resize_tabs and highlight_resized_tabs
 	$text =~ s/\n/<br\/>/g;$text =~ s/\t/<tab\/>/g;
 	
 	# if $entry->insert(undef|"") is called, then no "change" event is triggered
