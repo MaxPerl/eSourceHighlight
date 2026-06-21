@@ -1126,6 +1126,10 @@ sub rehighlight_all {
 	$text = pEFL::Elm::Entry::markup_to_utf8($text);
 	$text = Encode::decode("UTF-8",$text);
 	
+	# Highlight whole text
+	# Important: Here entites ("<>&") are already encoded by GNU source-highlight
+	# lib (or manually). So we don't need to do this for entry_set() in this function
+	# again
 	$text = $self->highlight_str($text);
 	
 	# Resize Tabs (TODO: Own function)
@@ -1137,11 +1141,7 @@ sub rehighlight_all {
 	# that means: $self->is_relight("yes") would apply also to the next change :-S
 	# therefore check, whether there is a text
 	if ($text) {
-
-		#$self->is_rehighlight("yes");
-		#$entry->select_all();
 		$entry->entry_set($text);
-		#$entry->entry_insert($text);
 	}
 	else {
 		$self->rehighlight("yes");
