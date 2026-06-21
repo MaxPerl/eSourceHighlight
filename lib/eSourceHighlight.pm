@@ -22,6 +22,7 @@ use eSourceHighlight::Tabs;
 use eSourceHighlight::Entry;
 use eSourceHighlight::Search;
 use eSourceHighlight::Settings;
+use eSourceHighlight::SingleInstance;
 
 use Text::Tabs;
 
@@ -159,6 +160,17 @@ sub init_ui {
 		$self->current_tab($tab);
 		$self->tabs()->push_tab($tab);
 	}
+	
+	# Single-Instance-Server: jetzt ist Ecore initialisiert (pEFL::Elm::init
+	# oben) UND die komplette UI steht. Ab hier auf weitere Aufrufe von
+	# esource-highlight.pl lauschen und empfangene Pfade als neue Tabs in
+	# diesem laufenden Prozess öffnen.
+	eSourceHighlight::SingleInstance::start_server(sub {
+		my ($path) = @_;
+		$self->open_file($path) if defined $path;
+		$win->raise();
+		$win->activate();
+	});
 	
 	$win->resize(900,600);
 	$win->show();
@@ -684,6 +696,15 @@ sub open_file {
 	}
 	else {
 		warn "Could not open file $selected\n";
+		my $popup = pEFL::Elm::Popup->add($self->elm_mainwindow());
+    		$popup->text_set("Can't open file:\n$selected");
+
+    		my $btn = pEFL::Elm::Button->add($popup);
+    		$btn->text_set("OK");
+    		$popup->part_content_set("button1", $btn);
+    		$btn->smart_callback_add("clicked", sub { $popup->del; });
+
+    		$popup->show();
 	}
 }
 
