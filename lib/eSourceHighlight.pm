@@ -293,8 +293,7 @@ sub add_toolbar {
 sub set_src_format {
 	my ($self) = (@_);
 	
-	my $src_win = pEFL::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
-	$src_win->focus_highlight_enabled_set(1);
+	my $src_win = pEFL::Elm::Win->util_dialog_add($self->elm_mainwindow(), "Open a file", "Open a file");
 	$src_win->autodel_set(1);
 	
 	my $bx = pEFL::Elm::Box->add($src_win);
@@ -486,7 +485,7 @@ sub on_exit {
 sub file_cb {
 	my ($self) = @_;
 	
-	my $fs_win = pEFL::Elm::Win->add($self->elm_mainwindow(), "Open a file", ELM_WIN_BASIC);
+	my $fs_win = pEFL::Elm::Win->util_dialog_add($self->elm_mainwindow(), "Open a file", "Open a file");
 	$fs_win->focus_highlight_enabled_set(1);
 	$fs_win->autodel_set(1);
 	
