@@ -1,5 +1,9 @@
 Revision history for Perl extension eSourceHighlight.
 
+0.06
+	- fix redo / undo problems
+0.05
+	- fix line_get in Entry.pm
 0.04
 	- Always only one running instance of eSourceHighlight
 0.03
