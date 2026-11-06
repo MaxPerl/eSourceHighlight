@@ -24,6 +24,19 @@ our @ISA = qw(Exporter);
 
 our $AUTOLOAD;
 
+# DEVELOPER NOTES
+# 1. Undo/Redo stack must always be plain-UTF text!
+# 2. Therefore: If you want to store text out of the Entry widget you have to do
+#	- pEFL::Elm::Entry::markup_to_utf8($markup) 
+#	(entspricht decode_entities und wandelt <tab/> und <br/> wieder um!)
+#	- Encode::decode("UTF-8", $text)
+# 3. If you want insert text into the Entry widget you have to do
+#	- encode entities &,<,and > (to &amp; %lt; or %gt;)
+#	- convert \t, and \n (to <tab/> or <br/>
+# 4. Ausnahme von 3.: Text, der absichtlich Markup enthält (z.B. highlight_str usw.)
+#	Escaping wird von GNU source-highlight selbst erledigt
+#	=> deshalb steht in highlight_str nur im Zweig ohne Sprache ein encode_entites
+
 sub new {
 	my ($class, $app, $box) = @_;
 	
@@ -652,7 +665,8 @@ sub fill_undo_stack {
 				
 			}
 			# Make a new undo record, only if a new word starts, a tab is inserted or a newline
-			elsif ($prev_pos == ($new_pos - $prev_plain_length) && $insert_content_plain =~ m/\S/ && $insert_content_plain ne "\n" && $insert_content_plain ne "\t" ) {
+			# NOTE: No merge with a del record (see !$last_undo->{del})
+			elsif (!$last_undo->{del} && $prev_pos == ($new_pos - $prev_plain_length) && $insert_content_plain =~ m/\S/ && $insert_content_plain ne "\n" && $insert_content_plain ne "\t" ) {
 				pop @{$current_tab->undo_stack};
 				$new_undo->{pos} = $prev_pos;	
 				$new_undo->{plain_length} = $prev_plain_length + $new_plain_length;
@@ -668,6 +682,9 @@ sub fill_undo_stack {
 				
 		}
 		else {
+			# Fix: $last_undo->{start|content|end} can be 0 or "" (both FALSE!)
+			# => Del on document beginning created wrong undo recordes (cba instead of abc)
+			# Solution: Check whether they are defined 
 			my $prev_start = defined($last_undo->{start}) ? $last_undo->{start} : -1;
 			my $prev_content = defined($last_undo->{content}) ? $last_undo->{content} : "";
 			my $prev_end = defined($last_undo->{end}) ? $last_undo->{end} : -1;
@@ -760,9 +777,17 @@ sub undo {
 		$content =~ s/&/&amp;/g;
 		$content =~ s/</&lt;/g;$content =~ s/>/&gt;/g;
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
+		
+		# Fix: Set undo_processing and so prevent that filter changes and messes 
+		# undo/redo records in tabs_to_whitespaces
+		$self->undo_processing(1);
 		$entry->entry_insert($content);
+		$self->undo_processing(0);
 		$entry->select_none();
 		$self->rehighlight_and_retab_lines($undo);
+		
+		# FIX: Set cursor to the first undoed characters
+		# we cannot use $und->{end} here, because end doesn't grow on multiple (merged) del events!
 		$entry->cursor_pos_set($undo->{start} + length($undo->{content}));
 	}
 	elsif ($undo->{pos} >= 0) {
@@ -803,7 +828,7 @@ sub redo {
 		# see https://github.com/MaxPerl/eSourceHighlight/issues/1
 		# and perhaps https://github.com/MaxPerl/eSourceHighlight/issues/2 ?
 		
-		# This is already done in correct_change!!!
+		# FIX: The following is already done in correct_change!!!
 		# my $content_plain = pEFL::Elm::Entry::markup_to_utf8($redo->{content});
 		# $content_plain = Encode::decode("UTF-8",$content_plain); 
 		
@@ -831,7 +856,12 @@ sub redo {
 		$content =~ s/</&lt;/g;$content =~ s/>/&gt;/g;
 		$content =~ s/\t/<tab\/>/g; $content =~ s/\n/<br\/>/g;
 		$entry->cursor_pos_set($redo->{pos});
+		
+		# Fix: Set undo_processing and so prevent that filter changes and messes 
+		# undo/redo records in tabs_to_whitespaces
+		$self->undo_processing(1);		
 		$entry->entry_insert($content);
+		$self->undo_processing(0);
 		$self->rehighlight_and_retab_lines($redo); #, $redo;??
 		$entry->cursor_pos_set($redo->{pos} + $redo->{plain_length});
 	}
@@ -891,10 +921,15 @@ sub auto_indent {
 				$cp1->text_markup_prepend($tabs) ;
 				$entry->calc_force();
 				
+				# Undo stach contains only plain text
+				my $plain = $tabs;
+				$plain =~ s/<tab\/>/\t/g;
+
 				# Because there is no selection (?) the "change, MANUAL" event 
 				# isn't triggered. Therefore we must push the undo stack manually
 				my $auto_indent_undo = {
-					content => $tabs,
+					# Fix: Always plain text in undo-/redo-record!!!!
+					content => $plain,
 					plain_length => $plain_length,
 					pos => $cursor_pos,
 				};
@@ -995,7 +1030,11 @@ sub resize_whitespaces_re {
 sub tabs_to_whitespaces {
 	my ($entry, $en, $text) = @_;
 	
+	# Don't change tabs to whitespace if
+	# 1. tabmode is not whitespaces
+	# 2. a undo record is inserted in text (NEVER CHANGE UNDO RECORDS OTHERWISE THERE WILL BE TRASH ON THE (REDO) STACK!)
 	return $text unless ($entry->tabmode() eq "whitespaces");
+	return $text if ($entry->undo_processing());
 	
 	if ($text eq "<tab\/>") {
 		my $textblock = $en->textblock_get();

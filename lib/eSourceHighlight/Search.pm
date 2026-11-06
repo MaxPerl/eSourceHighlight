@@ -305,18 +305,27 @@ sub replace_clicked {
 	my $en = $entry->elm_entry();
 	my $stext_markup = $self->elm_entry()->text_get();
 	my $stext = pEFL::Elm::Entry::markup_to_utf8($stext_markup);
+	$stext = Encode::decode("UTF-8", $stext);
 	
 	return unless ($stext);
 	
 	my $rtext_markup = $self->elm_replace_entry()->text_get();
 	my $rtext = pEFL::Elm::Entry::markup_to_utf8($rtext_markup);
+	$rtext = Encode::decode("UTF-8", $rtext);
 	
 	my $selected_text = $en->selection_get() || "";
 	my ($pos,$end) = $en->select_region_get();
 	$selected_text = pEFL::Elm::Entry::markup_to_utf8($selected_text);
+	$selected_text = Encode::decode("UTF-8",$selected_text);
 	
 	if ($stext eq $selected_text) {
-		$en->entry_insert($rtext);
+		my $rmarkup = $rtext;
+		$rmarkup =~ s/&/&amp;/g;
+    		$rmarkup =~ s/</&lt;/g;
+    		$rmarkup =~ s/>/&gt;/g;
+    		$rmarkup =~ s/\t/<tab\/>/g;
+    		$rmarkup =~ s/\n/<br\/>/g;
+		$en->entry_insert($rmarkup);
 		
 		# we have to add 2 undo records manually, because it doesn't work automatically
 		$entry->undo_already_done("yes");
