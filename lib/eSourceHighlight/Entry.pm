@@ -125,7 +125,7 @@ sub init_entry {
 	
 	$en->markup_filter_append(\&tabs_to_whitespaces, $self);
 	
-	$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&on_key_down, $self);
+	#$en->event_callback_add(EVAS_CALLBACK_KEY_DOWN, \&on_key_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_KEY_UP, \&on_key_up, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_DOWN, \&mouse_down, $self);
 	$en->event_callback_add(EVAS_CALLBACK_MOUSE_UP, \&mouse_up, $self);
@@ -181,15 +181,16 @@ sub on_key_up {
 	my $mod = $e->modifiers();
 	my $keyname = $e->keyname();
 	
+	if ($keyname =~ m/Up|Down|Return/ && $self->app->current_tab->source_highlight() eq "yes" ) {
+		rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
+	}
+	
 	if ($self->match_braces eq "yes" && $keyname =~ m/Up|KP_Prior|Down|KP_Next|Right|Left|Return/) {
 		$self->highlight_match_braces();
 	}
 	
 	#tab_selection($self, $en) if ($keyname eq "Tab" && $mod->key_modifier_is_set("Control"));
 	
-	if ($keyname =~ m/Up|Down|Return/ && $self->app->current_tab->source_highlight() eq "yes" ) {
-		rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
-	}
 }
 
 sub on_key_down {
@@ -200,7 +201,7 @@ sub on_key_down {
 	my $keyname = $e->keyname();
 	
 	if ($keyname =~ m/Up|Down|Return/ && $self->app->current_tab->source_highlight() eq "yes" ) {
-		rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
+		#rehighlight_visible_range($self) unless ($mod->key_modifier_is_set("Shift"));
 	}
 }
 
@@ -336,7 +337,6 @@ sub changed {
 
 sub rehighlight_visible_range {
 	my ($self) = @_;
-	
 	my $entry = $self->elm_entry();
 	my $cpos = $entry->cursor_pos_get();
 
@@ -347,6 +347,12 @@ sub rehighlight_visible_range {
 	my $cp1 = pEFL::Evas::TextblockCursor->new($textblock);
 	my $cp2 = pEFL::Evas::TextblockCursor->new($textblock);
 	$cp1->visible_range_get($cp2);
+	
+	# Fix: Go to the last char, even if the line is wrapped by ELM_WRAP_WORD
+	# Without this text could be cutted within a line and thus between two format tags
+	# The result would be that a closing `format` tag at the end would be superfluous
+	# (and would therefore cause display errors).
+	$cp2->paragraph_char_last();
 	
 	my $text = $cp1->range_text_get($cp2,EVAS_TEXTBLOCK_TEXT_PLAIN);
 	$text = Encode::decode("UTF-8",$text);
